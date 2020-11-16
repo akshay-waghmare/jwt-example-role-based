@@ -15,6 +15,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter;
 
 import javax.annotation.Resource;
 
@@ -56,9 +57,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.cors().and().csrf().disable().
+        http.cors().and().headers().addHeaderWriter(
+				new XFrameOptionsHeaderWriter(
+						XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN)).and().csrf().disable().
+        
                 authorizeRequests()
-                .antMatchers("/h2-console/**","/token/*", "/signup","/events","/events/**","/market/**").permitAll()
+                .antMatchers("/ws/*","/ws/**","/h2-console/**","/token/*", "/signup","/events","/events/**","/market/**").permitAll()
                 .anyRequest().authenticated()
                 .and()
                 .exceptionHandling().authenticationEntryPoint(unauthorizedHandler).and()
@@ -70,7 +74,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     //comment this if you are not using h2-console
     @Override
 	public void configure(WebSecurity  web) throws Exception {
-        web.ignoring().antMatchers("/h2-console/**");
+        web.ignoring().antMatchers("/h2-console/**","/ws/*","/ws/**");
     }
 
     @Bean
