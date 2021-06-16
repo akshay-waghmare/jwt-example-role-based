@@ -62,7 +62,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 						XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN)).and().csrf().disable().
         
                 authorizeRequests()
-                .antMatchers("/ws/*","/ws/**","/h2-console/**","/token/*", "/signup","/events","/events/**","/market/**").permitAll()
+                .antMatchers("/ws/*","/ws/**","/h2-console/**","/token/*", "/signup","/football","/football/**","/events","/events/**","/market/**").permitAll()
                 .anyRequest().authenticated()
                 .and()
                 .exceptionHandling().authenticationEntryPoint(unauthorizedHandler).and()

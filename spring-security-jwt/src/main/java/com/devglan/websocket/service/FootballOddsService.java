@@ -15,6 +15,7 @@
  */
 package com.devglan.websocket.service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.HashSet;
@@ -28,26 +29,32 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.ResponseBody;
+
 
 @Service
-public class QuoteService implements ApplicationListener<BrokerAvailabilityEvent> {
+public class FootballOddsService implements ApplicationListener<BrokerAvailabilityEvent> {
 
-	private static Log logger = LogFactory.getLog(QuoteService.class);
+	private static Log logger = LogFactory.getLog(FootballOddsService.class);
 
 	private final MessageSendingOperations<String> messagingTemplate;
-
-	private final StockQuoteGenerator quoteGenerator = new StockQuoteGenerator();
 
 	private AtomicBoolean brokerAvailable = new AtomicBoolean();
 
 
 	@Autowired
-	public QuoteService(MessageSendingOperations<String> messagingTemplate) {
+	public FootballOddsService(MessageSendingOperations<String> messagingTemplate) {
 		this.messagingTemplate = messagingTemplate;
 	}
 
@@ -56,56 +63,44 @@ public class QuoteService implements ApplicationListener<BrokerAvailabilityEvent
 		this.brokerAvailable.set(event.isBrokerAvailable());
 	}
 
-	@Scheduled(fixedDelay=10000)
+	@Scheduled(fixedDelay=30000)
 	public void sendQuotes() {
-		for (Quote quote : this.quoteGenerator.generateQuotes()) {
-			if (logger.isTraceEnabled()) {
-				logger.info("Sending quote " + quote);
-			}
+			String inplayData = this.getOddsInplay();
+			
 			if (this.brokerAvailable.get()) {
-				//sending payload quote to destination "/topic/price.stock"
-				this.messagingTemplate.convertAndSend("/topic/price.stock." + quote.getTicker(), quote);
+				//sending payload quote to destination "/topic/price.inplay"
+				this.messagingTemplate.convertAndSend("/topic/football.inplay", inplayData);
 			}
 		}
-	}
+		
+		
 
 
-	private static class StockQuoteGenerator {
+	
 
-		private static final MathContext mathContext = new MathContext(2);
+		public String getOddsInplay() {
+			OkHttpClient client = new OkHttpClient();
+			 ObjectMapper objectMapper = new ObjectMapper();
+			 Request request = new Request.Builder()
+						.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/inplaying")
+						.get()
+						.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
+						.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e")
+						.build();
 
-		private final Random random = new Random();
+			//implement global error controller advice
+			try {
+				ResponseBody responseBody = client.newCall(request).execute().body();
+				System.out.println(request.toString());
 
-		private final Map<String, String> prices = new ConcurrentHashMap<>();
 
-
-		public StockQuoteGenerator() {
-			this.prices.put("CTXS", "24.30");
-			this.prices.put("DELL", "13.03");
-			this.prices.put("EMC", "24.13");
-			this.prices.put("GOOG", "893.49");
-			this.prices.put("MSFT", "34.21");
-			this.prices.put("ORCL", "31.22");
-			this.prices.put("RHT", "48.30");
-			this.prices.put("VMW", "66.98");
-		}
-
-		public Set<Quote> generateQuotes() {
-			Set<Quote> quotes = new HashSet<>();
-			for (String ticker : this.prices.keySet()) {
-				BigDecimal price = getPrice(ticker);
-				quotes.add(new Quote(ticker, price));
+				return responseBody.string();
+			} catch (IOException e) {
+				logger.info("failed fetching events" + e.getMessage());
 			}
-			return quotes;
+			return null;
 		}
 
-		private BigDecimal getPrice(String ticker) {
-			BigDecimal seedPrice = new BigDecimal(this.prices.get(ticker), mathContext);
-			double range = seedPrice.multiply(new BigDecimal(0.02)).doubleValue();
-			BigDecimal priceChange = new BigDecimal(String.valueOf(this.random.nextDouble() * range), mathContext);
-			return seedPrice.add(priceChange);
-		}
 
 	}
 
-}

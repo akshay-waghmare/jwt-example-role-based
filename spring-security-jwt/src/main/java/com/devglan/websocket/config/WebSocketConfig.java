@@ -22,7 +22,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 //        .setClientLogin("guest")
 //        .setClientPasscode("guest")
 //        .setRelayPort(61613);
+    	
+    	//messages having this prefix will be interpreted by @MessageMapping() annotation 
+    	//eg. /topic/add call from client side will be interpreted by @MessageMapping("topic")
         config.enableSimpleBroker("/topic");
+    	//messages having this prefix will be interpreted by @MessageMapping() annotation 
+    	//eg. /app/add call from client side will be interpreted by @MessageMapping("add")
         config.setApplicationDestinationPrefixes("/app");
     }
     
@@ -37,6 +42,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+    	//client will use this to connect to server
         registry.addEndpoint("/ws").setAllowedOrigins("*").withSockJS();
     }
 }
