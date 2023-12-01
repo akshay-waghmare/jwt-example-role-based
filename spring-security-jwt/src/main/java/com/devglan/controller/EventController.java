@@ -27,54 +27,48 @@ import okhttp3.ResponseBody;
 @RestController
 @RequestMapping("/events")
 public class EventController {
-	
-	
+
 	private static final Logger log = LoggerFactory.getLogger(EventController.class);
 
-	
 	@RequestMapping(value = "", method = RequestMethod.GET, produces = "application/json")
 	public ResponseEntity<List<Event>> getListOfEvents() {
 
-		// abstract this logic to service layer later on 
-		
-		 OkHttpClient client = new OkHttpClient();
-		 ObjectMapper objectMapper = new ObjectMapper();
-		Request request = new Request.Builder()
-			.url("https://pinnacle-odds.p.rapidapi.com/v2/sports")
-			.get()
-			.addHeader("x-rapidapi-host", "pinnacle-odds.p.rapidapi.com")
-			.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e")
-			.build();
+		// abstract this logic to service layer later on
 
-		//implement global error controller advice
+		OkHttpClient client = new OkHttpClient();
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder().url("https://pinnacle-odds.p.rapidapi.com/v2/sports").get()
+				.addHeader("x-rapidapi-host", "pinnacle-odds.p.rapidapi.com")
+				.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e").build();
+
+		// implement global error controller advice
 		try {
 //			ResponseBody responseBody = client.newCall(request).execute().body();
-			//for development purposes avoiding calls as calls are limited so hard coding
+			// for development purposes avoiding calls as calls are limited so hard coding
 			String events = "[{\"id\":1,\"name\":\"Football\"},{\"id\":2,\"name\":\"Tennis\"},{\"id\":3,\"name\":\"Basketball\"}]";
-			List<Event> entity = objectMapper.readValue(events, new TypeReference<List<Event>>() {});
+			List<Event> entity = objectMapper.readValue(events, new TypeReference<List<Event>>() {
+			});
 
-			return new ResponseEntity<List<Event>>(entity,HttpStatus.OK);
+			return new ResponseEntity<List<Event>>(entity, HttpStatus.OK);
 		} catch (IOException e) {
 			log.info("failed fetching events" + e.getMessage());
 		}
 		return null;
-		
+
 	}
 
 	// upcoming matches here for new football betting odds api
 	@RequestMapping(value = "/football/upcoming", method = RequestMethod.GET, produces = "application/json")
 	public ResponseEntity<String> getUpcomingEventsForFootball() {
-		
-		OkHttpClient client = new OkHttpClient();
-		 ObjectMapper objectMapper = new ObjectMapper();
-		 Request request = new Request.Builder()
-					.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/upcoming")
-					.get()
-					.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
-					.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e")
-					.build();
 
-		//implement global error controller advice
+		OkHttpClient client = new OkHttpClient();
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder()
+				.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/upcoming").get()
+				.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
+				.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e").build();
+
+		// implement global error controller advice
 		try {
 			ResponseBody responseBody = client.newCall(request).execute().body();
 			System.out.println(request.toString());
@@ -82,91 +76,79 @@ public class EventController {
 
 //			List<Market> result = entity.getResult();
 
-			return new ResponseEntity<String>(responseBody.string(),HttpStatus.OK);
+			return new ResponseEntity<String>(responseBody.string(), HttpStatus.OK);
 		} catch (IOException e) {
 			log.info("failed fetching events" + e.getMessage());
 		}
 		return null;
 	}
-	
-	// in-play matches here for new football betting odds api
-		@RequestMapping(value = "/football/inplay", method = RequestMethod.GET, produces = "application/json")
-		public ResponseEntity<String> getInplayEventsForFootball() {
-			
-			OkHttpClient client = new OkHttpClient();
-			 ObjectMapper objectMapper = new ObjectMapper();
-			 Request request = new Request.Builder()
-						.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/inplaying")
-						.get()
-						.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
-						.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e")
-						.build();
 
-			//implement global error controller advice
-			try {
-				ResponseBody responseBody = client.newCall(request).execute().body();
-				System.out.println(request.toString());
+	// in-play matches here for new football betting odds api
+	@RequestMapping(value = "/football/inplay", method = RequestMethod.GET, produces = "application/json")
+	public ResponseEntity<String> getInplayEventsForFootball() {
+
+		OkHttpClient client = new OkHttpClient();
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder()
+				.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/inplaying").get()
+				.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
+				.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e").build();
+
+		// implement global error controller advice
+		try {
+			ResponseBody responseBody = client.newCall(request).execute().body();
+			System.out.println(request.toString());
 //				Markets entity = objectMapper.readValue(responseBody.string(), Markets.class);
 
 //				List<Market> result = entity.getResult();
 
-				return new ResponseEntity<String>(responseBody.string(),HttpStatus.OK);
-			} catch (IOException e) {
-				log.info("failed fetching events" + e.getMessage());
-			}
-			return null;
+			return new ResponseEntity<String>(responseBody.string(), HttpStatus.OK);
+		} catch (IOException e) {
+			log.info("failed fetching events" + e.getMessage());
 		}
-		
+		return null;
+	}
 
-
-	
 	@RequestMapping(value = "/{eventId}/inplay/{isInplay}", method = RequestMethod.GET, produces = "application/json")
-	public ResponseEntity<Markets> getBetMarketsByEvent(@PathVariable("eventId") int eventId,@PathVariable("isInplay") boolean isInplay) {
-		
-		OkHttpClient client = new OkHttpClient();
-		 ObjectMapper objectMapper = new ObjectMapper();
-		 Request request = new Request.Builder()
-					.url("https://sport-data.p.rapidapi.com/api/listBetMarkets/"+eventId+"/"+isInplay)
-					.get()
-					.addHeader("x-rapidapi-host", "sport-data.p.rapidapi.com")
-					.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e")
-					.build();
+	public ResponseEntity<Markets> getBetMarketsByEvent(@PathVariable("eventId") int eventId,
+			@PathVariable("isInplay") boolean isInplay) {
 
-		//implement global error controller advice
+		OkHttpClient client = new OkHttpClient();
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder()
+				.url("https://sport-data.p.rapidapi.com/api/listBetMarkets/" + eventId + "/" + isInplay).get()
+				.addHeader("x-rapidapi-host", "sport-data.p.rapidapi.com")
+				.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e").build();
+
+		// implement global error controller advice
 		try {
 			ResponseBody responseBody = client.newCall(request).execute().body();
 			Markets entity = objectMapper.readValue(responseBody.string(), Markets.class);
 
 			List<Market> result = entity.getResult();
 
-			return new ResponseEntity<Markets>(entity,HttpStatus.OK);
+			return new ResponseEntity<Markets>(entity, HttpStatus.OK);
 		} catch (IOException e) {
 			log.info("failed fetching events" + e.getMessage());
 		}
 		return null;
 	}
 
+	@RequestMapping(value = "/cricket/inplay", method = RequestMethod.GET, produces = "application/json")
+	public ResponseEntity<String> getCricketInplayInfo() {
+		String cricketInplayInfo = "Akash is playing cricket";
 
-@RequestMapping(value = "/cricket/inplay", method = RequestMethod.GET, produces = "application/json")
-public ResponseEntity<String> getCricketInplayInfo() {
-    String cricketInplayInfo = "Akash is playing cricket";
-    
-    System.out.println(cricketInplayInfo); 
+		System.out.println(cricketInplayInfo);
 
-    return new ResponseEntity<String>(cricketInplayInfo, HttpStatus.OK);
+		return new ResponseEntity<String>(cricketInplayInfo, HttpStatus.OK);
+	}
+
+	@RequestMapping(value = "/cricket/upcoming", method = RequestMethod.GET, produces = "application/json")
+	public ResponseEntity<String> getCricketUpcomingInfo() {
+		String cricketUpcomingInfo = "Exciting upcoming cricket are";
+
+		System.out.println(cricketUpcomingInfo);
+
+		return new ResponseEntity<String>(cricketUpcomingInfo, HttpStatus.OK);
+	}
 }
-
-@RequestMapping(value = "/cricket/upcoming", method = RequestMethod.GET, produces = "application/json")
-public ResponseEntity<String> getCricketUpcomingInfo() {
-    String cricketUpcomingInfo = "Exciting upcoming cricket are";
-    
-    System.out.println(cricketUpcomingInfo);
-
-    return new ResponseEntity<String>(cricketUpcomingInfo, HttpStatus.OK);
-}
-}
-
-
-
-
-
