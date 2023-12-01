@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.devglan.model.Event;
-import com.devglan.model.Events;
 import com.devglan.model.Market;
 import com.devglan.model.Markets;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -117,6 +116,7 @@ public class EventController {
 			}
 			return null;
 		}
+		
 
 
 	
@@ -146,4 +146,27 @@ public class EventController {
 		return null;
 	}
 
+
+@RequestMapping(value = "/cricket/inplay", method = RequestMethod.GET, produces = "application/json")
+public ResponseEntity<String> getCricketInplayInfo() {
+    String cricketInplayInfo = "Akash is playing cricket";
+    
+    System.out.println(cricketInplayInfo); 
+
+    return new ResponseEntity<String>(cricketInplayInfo, HttpStatus.OK);
 }
+
+@RequestMapping(value = "/cricket/upcoming", method = RequestMethod.GET, produces = "application/json")
+public ResponseEntity<String> getCricketUpcomingInfo() {
+    String cricketUpcomingInfo = "Exciting upcoming cricket are";
+    
+    System.out.println(cricketUpcomingInfo);
+
+    return new ResponseEntity<String>(cricketUpcomingInfo, HttpStatus.OK);
+}
+}
+
+
+
+
+
