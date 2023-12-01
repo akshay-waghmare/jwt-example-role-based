@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.devglan.model.Event;
-import com.devglan.model.Events;
 import com.devglan.model.Market;
 import com.devglan.model.Markets;
 import com.fasterxml.jackson.core.type.TypeReference;

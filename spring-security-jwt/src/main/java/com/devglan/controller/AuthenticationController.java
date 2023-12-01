@@ -24,31 +24,29 @@ import com.devglan.service.UserService;
 @RequestMapping("/token")
 public class AuthenticationController {
 
-  @Autowired
-  private AuthenticationManager authenticationManager;
+	@Autowired
+	private AuthenticationManager authenticationManager;
 
-  @Autowired
-  private TokenProvider jwtTokenUtil;
+	@Autowired
+	private TokenProvider jwtTokenUtil;
 
-  @Autowired
-  private UserService userService;
+	@Autowired
+	private UserService userService;
 
-  @RequestMapping(value = "/generate-token", method = RequestMethod.POST)
-  public ResponseEntity<?> register(@RequestBody LoginUser loginUser)
-      throws AuthenticationException, UnAuthorizedException {
+	@RequestMapping(value = "/generate-token", method = RequestMethod.POST)
+	public ResponseEntity<?> register(@RequestBody LoginUser loginUser)
+			throws AuthenticationException, UnAuthorizedException {
 
+		try {
+			final Authentication authentication = authenticationManager.authenticate(
+					new UsernamePasswordAuthenticationToken(loginUser.getUsername(), loginUser.getPassword()));
+			SecurityContextHolder.getContext().setAuthentication(authentication);
+			final String token = jwtTokenUtil.generateToken(authentication);
+			return ResponseEntity.ok(new AuthToken(token));
+		} catch (AuthenticationException e) {
+			throw new UnAuthorizedException("Incorrect credentials");
 
-    try {
-      final Authentication authentication =
-          authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-              loginUser.getUsername(), loginUser.getPassword()));
-      SecurityContextHolder.getContext().setAuthentication(authentication);
-      final String token = jwtTokenUtil.generateToken(authentication);
-      return ResponseEntity.ok(new AuthToken(token));
-    } catch (AuthenticationException e) {
-      throw new UnAuthorizedException("Incorrect credentials");
-
-    }
-  }
+		}
+	}
 
 }

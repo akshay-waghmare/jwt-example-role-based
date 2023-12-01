@@ -15,12 +15,15 @@
  */
 package com.devglan.config;
 
+import static org.springframework.messaging.simp.SimpMessageType.CONNECT;
+import static org.springframework.messaging.simp.SimpMessageType.DISCONNECT;
+import static org.springframework.messaging.simp.SimpMessageType.MESSAGE;
+import static org.springframework.messaging.simp.SimpMessageType.OTHER;
+import static org.springframework.messaging.simp.SimpMessageType.SUBSCRIBE;
+
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.messaging.MessageSecurityMetadataSourceRegistry;
 import org.springframework.security.config.annotation.web.socket.AbstractSecurityWebSocketMessageBrokerConfigurer;
-import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
-
-import static org.springframework.messaging.simp.SimpMessageType.*;
 
 @Configuration
 public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBrokerConfigurer {
@@ -31,7 +34,7 @@ public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
 		messages
 				.nullDestMatcher().permitAll()
 //				.simpSubscribeDestMatchers("/user/queue/errors").permitAll()
-				.simpSubscribeDestMatchers("/topic/**","/topic/*", "/user/**","/ws/*","/ws/**").permitAll()
+				.simpSubscribeDestMatchers("/topic/**","/topic/*","/token", "/user/**","/ws/*","/ws/**").permitAll()
 				.simpDestMatchers("/app/**").permitAll()
 				.simpTypeMatchers(CONNECT,DISCONNECT,SUBSCRIBE, MESSAGE,OTHER).permitAll()
 				.anyMessage().permitAll();
