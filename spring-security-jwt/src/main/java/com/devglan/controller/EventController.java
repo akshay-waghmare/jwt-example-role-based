@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
 import okhttp3.ResponseBody;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -43,14 +44,14 @@ public class EventController {
 
 		// implement global error controller advice
 		try {
-//			ResponseBody responseBody = client.newCall(request).execute().body();
+		ResponseBody responseBody = client.newCall(request).execute().body();
 			// for development purposes avoiding calls as calls are limited so hard coding
 			String events = "[{\"id\":1,\"name\":\"Football\"},{\"id\":2,\"name\":\"Tennis\"},{\"id\":3,\"name\":\"Basketball\"}]";
 			List<Event> entity = objectMapper.readValue(events, new TypeReference<List<Event>>() {
 			});
 
 			return new ResponseEntity<List<Event>>(entity, HttpStatus.OK);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			log.info("failed fetching events" + e.getMessage());
 		}
 		return null;
@@ -134,21 +135,62 @@ public class EventController {
 		return null;
 	}
 
+	
+	
+	/**
+	 * This function retrieves inplay cricket data
+	 */
 	@RequestMapping(value = "/cricket/inplay", method = RequestMethod.GET, produces = "application/json")
 	public ResponseEntity<String> getCricketInplayInfo() {
 		String cricketInplayInfo = "Akash is playing cricket";
 
 		System.out.println(cricketInplayInfo);
-
-		return new ResponseEntity<String>(cricketInplayInfo, HttpStatus.OK);
+		OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder()
+		.url("https://api.sofascore.com/api/v1/sport/cricket/events/live").build();
+		 try {
+		        Response responseBody = client.newCall(request).execute();
+		        if (responseBody.isSuccessful()) {
+		            String rBody = responseBody.body().string();
+		            System.out.println(rBody);
+		            return new ResponseEntity<String>(rBody, HttpStatus.OK);
+		        } else {
+		            System.out.println("Error: " + responseBody.code());
+		        }
+		    } catch (IOException e)
+		 {
+		        log.info("Failed fetching in-play events: " + e.getMessage());
+		    }
+	    return null;
 	}
+
 
 	@RequestMapping(value = "/cricket/upcoming", method = RequestMethod.GET, produces = "application/json")
 	public ResponseEntity<String> getCricketUpcomingInfo() {
 		String cricketUpcomingInfo = "Exciting upcoming cricket are";
 
 		System.out.println(cricketUpcomingInfo);
-
-		return new ResponseEntity<String>(cricketUpcomingInfo, HttpStatus.OK);
+		OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
+		ObjectMapper objectMapper = new ObjectMapper();
+		Request request = new Request.Builder()
+				.url("https://api.sofascore.com/api/v1/sport/cricket/scheduled-events/2023-12-06 ").build();  // only creating a request 
+		try {
+			Response responseBody = client.newCall(request).execute();// actualling sending a request
+			if (responseBody.isSuccessful()) {
+                String rBody =  responseBody.body().string();
+                responseBody.body().string(); 
+                System.out.println(rBody);
+                return new ResponseEntity<String>(rBody, HttpStatus.OK); // returning this data to caller
+            } else {
+                System.out.println("Error: " + responseBody.code());
+            }
+			
+		} catch (IOException e) {
+			log.info("failed fetching events" + e.getMessage());
+		}
+		
+	
+         return null;
 	}
 }

@@ -1,0 +1,68 @@
+ENVIRONMENT SETUP FOR OUR PROJECT:
+
+Requirements::
+# JAVA(openjdk version "1.8.0_382")
+# Install nodejs(8.9.0)
+# Angular cli install 6.2.3
+# Download SDKMAN
+# Download GITBASH
+# Download Eclipse
+
+
+
+Lnks and Procedure
+
+(1)Download git bash first
+
+
+(2) Download SDKMAN  ( To change the java version on our pc)
+
+ OPEN GIT BASH AND DO FOLLOWING STEPS:
+
+Step 1- Just launch a new terminal and type in:
+           curl -s "https://get.sdkman.io"
+Step 2- then run command - sdk list java 
+Step 3- then from list install java 8.0.382-zulu  using command (sdk install java 8.0.382-zulu)
+Step 4- check java version 
+
+
+(3) Install Angular cli install 6.2.3
+  OPEN GIT BASH AND DO FOLLOWING STEPS:
+
+Step 1- run command (npm i @angular/cli@6.2.3) 
+
+_______________________________________________________________________________________________________________________________
+
+## Running code:: on Eclipse
+
+Step 1 - open eclipse , go on import - maven - existing maven project and the browse our folder 
+
+Step 2- then right click on spring security -- and do update maven project 
+
+Step 3 - maven clean
+Step 4- then do run as maven install 
+Step 5- select application.java when u run the project
+
+
+
+
+# After eclipse now we have to change remote branches to cricket
+ 
+Step 1 - go to project folder open git bash and write (git branch -r) command to show all branches
+Step 2 - second command is ( git checkout cricket) that heads to cricket branch 
+
+
+
+
+
+
+http://localhost:4200/football
+
+
+
+
+
+
+
+   
+   
