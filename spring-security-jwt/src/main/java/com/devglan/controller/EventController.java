@@ -1,6 +1,8 @@
 package com.devglan.controller;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -173,8 +175,11 @@ public class EventController {
 		System.out.println(cricketUpcomingInfo);
 		OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
 		ObjectMapper objectMapper = new ObjectMapper();
-		Request request = new Request.Builder()
-				.url("https://api.sofascore.com/api/v1/sport/cricket/scheduled-events/2023-12-06 ").build();  // only creating a request 
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+		 String todayDate = LocalDate.now().format(formatter);
+
+		        Request request = new Request.Builder()		
+		.url("https://api.sofascore.com/api/v1/sport/cricket/scheduled-events/" + todayDate).build();
 		try {
 			Response responseBody = client.newCall(request).execute();// actualling sending a request
 			if (responseBody.isSuccessful()) {
