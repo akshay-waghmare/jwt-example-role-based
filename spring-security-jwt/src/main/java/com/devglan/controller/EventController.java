@@ -19,6 +19,7 @@ import com.devglan.model.Event;
 import com.devglan.model.Market;
 import com.devglan.model.Markets;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import okhttp3.OkHttpClient;
@@ -198,4 +199,49 @@ public class EventController {
 	
          return null;
 	}
+
+
+
+@RequestMapping(value = "/uniqeventid/{tournamentId}", method = RequestMethod.GET, produces = "application/json")
+public ResponseEntity<String> getTrmtStanding(@PathVariable("tournamentId") int tournid) {
+	String cricketUpcomingInfo = "Inside get tournamnet standing";
+
+	System.out.println(cricketUpcomingInfo);
+	OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
+	ObjectMapper objectMapper = new ObjectMapper();
+	
+
+	        Request request = new Request.Builder()		
+	.url("https://api.sofascore.com/api/v1/unique-tournament/"+tournid+"/seasons").build();
+	try {
+		Response responseBody = client.newCall(request).execute();// actualling sending a request
+		if (responseBody.isSuccessful()) {
+            String rBody =  responseBody.body().string();
+            responseBody.body().string(); 
+            JsonNode jsonNode = objectMapper.readTree(rBody);
+            System.out.println(rBody);
+         // Get the first season object
+            JsonNode firstSeason = jsonNode.get("seasons").get(0);
+            int id = firstSeason.get("id").asInt();
+            System.out.println("id is "+id);
+            Request seasonreq = new Request.Builder()		
+           .url("https://api.sofascore.com/api/v1/unique-tournament/11162/season/"+id+"/standings/total").build();
+            Response seasonresp = client.newCall(seasonreq).execute();
+            if (seasonresp.isSuccessful()) {
+                String seasonbody =  seasonresp.body().string();
+                return new ResponseEntity<String>(seasonbody, HttpStatus.OK); // returning this data to caller
+            }
+           
+        } else {
+            System.out.println("Error: " + responseBody.code());
+        }
+		
+	} catch (IOException e) {
+		log.info("failed fetching events" + e.getMessage());
+	}
+	
+
+     return null;
 }
+}
+
