@@ -1,6 +1,6 @@
 {
     "name": "Java",
-    "image": "mcr.microsoft.com/devcontainers/java:11-bullseye", // Updated to a more recent JDK
+    "image": "mcr.microsoft.com/devcontainers/java:8-bullseye", // Updated to a more recent JDK
     "features": {
         "ghcr.io/devcontainers/features/java:1": {
             "version": "none", 
