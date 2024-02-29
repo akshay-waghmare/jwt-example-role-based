@@ -17,6 +17,7 @@ public class TeamOdds {
 	public void setLayOdds(String layOdds) {
 		this.layOdds = layOdds;
 	}
+	public TeamOdds() {}
 	
 	
 

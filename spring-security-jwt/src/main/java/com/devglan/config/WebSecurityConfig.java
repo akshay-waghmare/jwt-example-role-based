@@ -62,7 +62,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 				authorizeRequests()
 				.antMatchers("/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**", "/signup",
-						"/football", "/football/**", "/events", "/events/**", "/market/**","/tennis","/tennis/**")
+						"/football", "/football/**", "/events", "/events/**", "/market/**","/tennis","/tennis/**","/cricket-data","/cricket-data/**")
 				.permitAll().anyRequest().authenticated().and().exceptionHandling()
 				.authenticationEntryPoint(unauthorizedHandler).and().sessionManagement()
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);

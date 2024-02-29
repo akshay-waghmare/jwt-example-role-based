@@ -25,7 +25,7 @@ public class SessionOdds {
 	public void setSessionOver(String sessionOver) {
 		this.sessionOver = sessionOver;
 	}
-	
-	
+	public SessionOdds() {}
+		
 
 }

@@ -1,0 +1,567 @@
+diff --git a/spring-security-jwt/src/main/java/com/devglan/controller/TennisEventController.java b/spring-security-jwt/src/main/java/com/devglan/controller/TennisEventController.java
+index 3a7d335..3e0412a 100644
+--- a/spring-security-jwt/src/main/java/com/devglan/controller/TennisEventController.java
++++ b/spring-security-jwt/src/main/java/com/devglan/controller/TennisEventController.java
+@@ -3,6 +3,8 @@ package com.devglan.controller;
+ import java.io.IOException;
+ import java.sql.Date;
+ import java.text.SimpleDateFormat;
++import java.time.LocalDate;
++import java.time.format.DateTimeFormatter;
+ import java.util.List;
+ 
+ import org.slf4j.Logger;
+@@ -65,16 +67,15 @@ private static final Logger log = LoggerFactory.getLogger(TennisEventController.
+ 	@RequestMapping(value = "/tennis/all", method = RequestMethod.GET, produces = "application/json")
+ 	public ResponseEntity<String> getListAllOfEvents() {
+ 
+-		// abstract this logic to service layer later on 
+-		java.util.Date date=new java.util.Date();
+-		SimpleDateFormat sDateFormat=new SimpleDateFormat("YYYY-MM-DD");
+-	//	System.out.println(sDateFormat);
++		//	System.out.println(sDateFormat);
++		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
++		 String todayDate = LocalDate.now().format(formatter);
+ 		 OkHttpClient client = new OkHttpClient();
+-		 Request request = new Request.Builder()
+-					.url("https://api.sofascore.com/api/v1/sport/tennis/scheduled-events/2021-07-03")
+-					.get()
+-					.build();
++		 
++		 Request request = new Request.Builder()		
++					.url("https://api.sofascore.com/api/v1/sport/tennis/scheduled-events/" + todayDate).build();
+ 
++		 
+ 		//implement global error controller advice
+ 		 try {
+ 				ResponseBody responseBody = client.newCall(request).execute().body();
+diff --git a/spring-security-jwt/src/main/java/com/devglan/controller/UserController.java b/spring-security-jwt/src/main/java/com/devglan/controller/UserController.java
+index 974cb72..da730fa 100644
+--- a/spring-security-jwt/src/main/java/com/devglan/controller/UserController.java
++++ b/spring-security-jwt/src/main/java/com/devglan/controller/UserController.java
+@@ -38,6 +38,4 @@ public class UserController {
+         return userService.save(user);
+     }
+ 
+-
+-
+ }
+diff --git a/spring-security-jwt/src/main/java/com/devglan/dao/BetRepository.java b/spring-security-jwt/src/main/java/com/devglan/dao/BetRepository.java
+new file mode 100644
+index 0000000..ee7c358
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/dao/BetRepository.java
+@@ -0,0 +1,14 @@
++package com.devglan.dao;
++
++import java.util.List;
++
++import org.springframework.data.jpa.repository.JpaRepository;
++
++import com.devglan.model.Bets;
++
++public interface BetRepository extends JpaRepository<Bets, Long> {
++
++	List<Bets> findByUserId(Long userId);
++    // You can add custom query methods here if needed
++}
++
+diff --git a/spring-security-jwt/src/main/java/com/devglan/dao/MatchRepository.java b/spring-security-jwt/src/main/java/com/devglan/dao/MatchRepository.java
+new file mode 100644
+index 0000000..ea67549
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/dao/MatchRepository.java
+@@ -0,0 +1,11 @@
++package com.devglan.dao;
++
++import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.stereotype.Repository;
++
++import com.devglan.model.Matches;
++
++@Repository
++public interface MatchRepository extends JpaRepository<Matches, Long> {
++}
++
+diff --git a/spring-security-jwt/src/main/java/com/devglan/dao/TransactionRepository.java b/spring-security-jwt/src/main/java/com/devglan/dao/TransactionRepository.java
+new file mode 100644
+index 0000000..8e142c5
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/dao/TransactionRepository.java
+@@ -0,0 +1,9 @@
++package com.devglan.dao;
++
++import org.springframework.data.jpa.repository.JpaRepository;
++
++import com.devglan.model.Transaction;
++
++public interface TransactionRepository extends JpaRepository<Transaction, Long> {
++    // You can add custom query methods here if needed
++}
+diff --git a/spring-security-jwt/src/main/java/com/devglan/model/Bets.java b/spring-security-jwt/src/main/java/com/devglan/model/Bets.java
+new file mode 100644
+index 0000000..29134e5
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/model/Bets.java
+@@ -0,0 +1,112 @@
++package com.devglan.model;
++
++import javax.persistence.*;
++import java.math.BigDecimal;
++import java.util.Date;
++
++@Entity
++@Table(name = "bets")
++public class Bets {
++
++    @Id
++    @GeneratedValue(strategy = GenerationType.IDENTITY)
++    @Column(name = "betId")
++    private Long betId;
++
++    @ManyToOne
++    @JoinColumn(name = "user_id", referencedColumnName = "id")
++    private User user;
++    
++    @Column(name = "user_id")
++    private Long userId;
++
++    @Column(name = "betType")
++    private String betType;
++
++    @Column(name = "amount")
++    private BigDecimal amount;
++
++    @Column(name = "odd")
++    private BigDecimal odd;
++
++    @Column(name = "potentialWin")
++    private BigDecimal potentialWin;
++
++    @Column(name = "status")
++    private String status;
++
++    @Column(name = "placedAt")
++    @Temporal(TemporalType.TIMESTAMP)
++    private Date placedAt;
++
++    // Constructors, Getters, and Setters
++    // Constructor
++    public Bets() {
++    }
++
++    // Getters and Setters
++    public Long getBetId() {
++        return betId;
++    }
++
++    public void setBetId(Long betId) {
++        this.betId = betId;
++    }
++
++    public Long getUserId() {
++        return userId;
++    }
++
++    public void setUserId(Long userId) {
++        this.userId = userId;
++    }
++
++    public String getBetType() {
++        return betType;
++    }
++
++    public void setBetType(String betType) {
++        this.betType = betType;
++    }
++
++    public BigDecimal getAmount() {
++        return amount;
++    }
++
++    public void setAmount(BigDecimal amount) {
++        this.amount = amount;
++    }
++
++    public BigDecimal getOdd() {
++        return odd;
++    }
++
++    public void setOdd(BigDecimal odd) {
++        this.odd = odd;
++    }
++
++    public BigDecimal getPotentialWin() {
++        return potentialWin;
++    }
++
++    public void setPotentialWin(BigDecimal potentialWin) {
++        this.potentialWin = potentialWin;
++    }
++
++    public String getStatus() {
++        return status;
++    }
++
++    public void setStatus(String status) {
++        this.status = status;
++    }
++
++    public Date getPlacedAt() {
++        return placedAt;
++    }
++
++    public void setPlacedAt(Date placedAt) {
++        this.placedAt = placedAt;
++    }
++}
++
+diff --git a/spring-security-jwt/src/main/java/com/devglan/model/Matches.java b/spring-security-jwt/src/main/java/com/devglan/model/Matches.java
+new file mode 100644
+index 0000000..f1a3e4b
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/model/Matches.java
+@@ -0,0 +1,132 @@
++package com.devglan.model;
++
++import javax.persistence.Entity;
++import javax.persistence.GeneratedValue;
++import javax.persistence.GenerationType;
++import javax.persistence.Id;
++import javax.persistence.Table;
++import java.util.Date;
++
++@Entity
++@Table(name = "matches")
++public class Matches {
++
++    @Id
++    @GeneratedValue(strategy = GenerationType.IDENTITY)
++    private Long matchId;
++
++    private String homeTeamName;
++    private String awayTeamName;
++    private Date matchDate;
++    private String sportType;
++    private String competition;
++    private String matchStatus;
++    private String result;
++    private Float odd;
++    private String location;
++    private Boolean visibility;
++    private String matchLink;
++
++    // Constructors, Getters, and Setters
++    // Constructor
++    public Matches() {
++    }
++
++    // Getters and Setters
++    public Long getMatchId() {
++        return matchId;
++    }
++
++    public void setMatchId(Long matchId) {
++        this.matchId = matchId;
++    }
++
++    public String getHomeTeamName() {
++        return homeTeamName;
++    }
++
++    public void setHomeTeamName(String homeTeamName) {
++        this.homeTeamName = homeTeamName;
++    }
++
++    public String getAwayTeamName() {
++        return awayTeamName;
++    }
++
++    public void setAwayTeamName(String awayTeamName) {
++        this.awayTeamName = awayTeamName;
++    }
++
++    public Date getMatchDate() {
++        return matchDate;
++    }
++
++    public void setMatchDate(Date matchDate) {
++        this.matchDate = matchDate;
++    }
++
++    public String getSportType() {
++        return sportType;
++    }
++
++    public void setSportType(String sportType) {
++        this.sportType = sportType;
++    }
++
++    public String getCompetition() {
++        return competition;
++    }
++
++    public void setCompetition(String competition) {
++        this.competition = competition;
++    }
++
++    public String getMatchStatus() {
++        return matchStatus;
++    }
++
++    public void setMatchStatus(String matchStatus) {
++        this.matchStatus = matchStatus;
++    }
++
++    public String getResult() {
++        return result;
++    }
++
++    public void setResult(String result) {
++        this.result = result;
++    }
++
++    public Float getOdd() {
++        return odd;
++    }
++
++    public void setOdd(Float odd) {
++        this.odd = odd;
++    }
++
++    public String getLocation() {
++        return location;
++    }
++
++    public void setLocation(String location) {
++        this.location = location;
++    }
++
++    public Boolean getVisibility() {
++        return visibility;
++    }
++
++    public void setVisibility(Boolean visibility) {
++        this.visibility = visibility;
++    }
++
++    public String getMatchLink() {
++        return matchLink;
++    }
++
++    public void setMatchLink(String matchLink) {
++        this.matchLink = matchLink;
++    }
++}
++
+diff --git a/spring-security-jwt/src/main/java/com/devglan/model/Transaction.java b/spring-security-jwt/src/main/java/com/devglan/model/Transaction.java
+new file mode 100644
+index 0000000..23f60a3
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/model/Transaction.java
+@@ -0,0 +1,121 @@
++package com.devglan.model;
++
++import javax.persistence.*;
++import java.math.BigDecimal;
++import java.util.Date;
++
++@Entity
++@Table(name = "transaction")
++public class Transaction {
++
++    @Id
++    @GeneratedValue(strategy = GenerationType.IDENTITY)
++    @Column(name = "transaction_id")
++    private Long transactionId;
++
++    @ManyToOne
++    @JoinColumn(name = "user_id", referencedColumnName = "id")
++    private User user;
++    @Column(name = "user_id")
++    private Long userId;
++
++    @Column(name = "transaction_Type", nullable = false)
++    private String transactionType;
++
++    @Column(name = "amount", nullable = false)
++    private BigDecimal amount;
++
++    @Column(name = "transaction_Date", nullable = false)
++    @Temporal(TemporalType.TIMESTAMP)
++    private Date transactionDate;
++
++    @Column(name = "status", nullable = false)
++    private String status;
++
++    @Column(name = "remark")
++    private String remark;
++
++    @Column(name = "fromto")
++    private String fromTo;
++
++    @Column(name = "balance_After_transaction", nullable = false)
++    private BigDecimal balanceAfterTransaction;
++
++    // Constructors, Getters, and Setters
++    // Constructor
++    public Transaction() {
++    }
++
++    // Getters and Setters
++    public Long getTransactionId() {
++        return transactionId;
++    }
++
++    public void setTransactionId(Long transactionId) {
++        this.transactionId = transactionId;
++    }
++
++    public Long getUserId() {
++        return userId;
++    }
++
++    public void setUserId(Long userId) {
++        this.userId = userId;
++    }
++
++    public String getTransactionType() {
++        return transactionType;
++    }
++
++    public void setTransactionType(String transactionType) {
++        this.transactionType = transactionType;
++    }
++
++    public BigDecimal getAmount() {
++        return amount;
++    }
++
++    public void setAmount(BigDecimal amount) {
++        this.amount = amount;
++    }
++
++    public Date getTransactionDate() {
++        return transactionDate;
++    }
++
++    public void setTransactionDate(Date transactionDate) {
++        this.transactionDate = transactionDate;
++    }
++
++    public String getStatus() {
++        return status;
++    }
++
++    public void setStatus(String status) {
++        this.status = status;
++    }
++
++    public String getRemark() {
++        return remark;
++    }
++
++    public void setRemark(String remark) {
++        this.remark = remark;
++    }
++
++    public String getFromTo() {
++        return fromTo;
++    }
++
++    public void setFromTo(String fromTo) {
++        this.fromTo = fromTo;
++    }
++
++    public BigDecimal getBalanceAfterTransaction() {
++        return balanceAfterTransaction;
++    }
++
++    public void setBalanceAfterTransaction(BigDecimal balanceAfterTransaction) {
++        this.balanceAfterTransaction = balanceAfterTransaction;
++    }
++}
+diff --git a/spring-security-jwt/src/main/java/com/devglan/service/BetService.java b/spring-security-jwt/src/main/java/com/devglan/service/BetService.java
+new file mode 100644
+index 0000000..44b5280
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/service/BetService.java
+@@ -0,0 +1,30 @@
++package com.devglan.service;
++
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
++import org.springframework.stereotype.Service;
++
++import com.devglan.dao.BetRepository;
++import com.devglan.model.Bets;
++
++import java.util.List;
++
++@Service
++public class BetService {
++
++    @Autowired
++    private BetRepository betRepository;
++
++    public Bets getBetById(Long id) throws NotFoundException {
++        return betRepository.findById(id)
++                            .orElseThrow(() -> new NotFoundException());
++    }
++
++    public List<Bets> getBetsByUserId(Long userId) {
++        return betRepository.findByUserId(userId);
++    }
++
++    // Other service methods (e.g., saveBet, updateBet, deleteBet) can be added here
++
++}
++
+diff --git a/spring-security-jwt/src/main/java/com/devglan/service/TransactionService.java b/spring-security-jwt/src/main/java/com/devglan/service/TransactionService.java
+new file mode 100644
+index 0000000..0373ca2
+--- /dev/null
++++ b/spring-security-jwt/src/main/java/com/devglan/service/TransactionService.java
+@@ -0,0 +1,28 @@
++package com.devglan.service;
++
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.stereotype.Service;
++
++import com.devglan.dao.TransactionRepository;
++import com.devglan.model.Transaction;
++
++import javassist.NotFoundException;
++
++@Service
++public class TransactionService {
++
++    @Autowired
++    private TransactionRepository transactionRepository;
++
++    public Transaction saveTransaction(Transaction transaction) {
++        return transactionRepository.save(transaction);
++    }
++
++    public Transaction getTransactionById(Long id) throws NotFoundException {
++        return transactionRepository.findById(id)
++                                    .orElseThrow(() -> new NotFoundException("Transaction not found with id: " + id));
++    }
++
++    // Add other service methods as needed
++
++}
+diff --git a/spring-security-jwt/src/main/resources/schema.sql b/spring-security-jwt/src/main/resources/schema.sql
+index 2fcd015..5e97ce1 100644
+--- a/spring-security-jwt/src/main/resources/schema.sql
++++ b/spring-security-jwt/src/main/resources/schema.sql
+@@ -4,6 +4,9 @@ drop table if exists user_roles;
+ create table role (id bigint not null auto_increment, description varchar(255), name varchar(255), primary key (id)) engine=MyISAM;
+ create table user (id bigint not null auto_increment, age integer, password varchar(255), salary bigint, username varchar(255), primary key (id)) engine=MyISAM;
+ create table user_roles (user_id bigint not null, role_id bigint not null, primary key (user_id, role_id)) engine=MyISAM;
++create table bets(betId bigint not null auto_increment,user_id bigint not null,betType varchar(20),amount decimal(10,2),odd decimal(10,2),potentialWin decimal(10,2),status varchar(20),placedAT DATETIME,foreign key (user_Id) references user(id),primary key (betId))engine=MyISAM;
++create table transaction(transaction_id bigint not null auto_increment,user_id bigint not null,transaction_Type varchar(20) not null,amount decimal(10,2) not null,transaction_Date DATETIME not null,status varchar(20)not null,remark varchar(20) null,fromto varchar(20) null,balance_After_transaction decimal(10,2) not null,foreign key (user_Id) references user(id),primary key (transaction_id))engine=MyISAM;
++create table matches(match_id bigint not null,home_Team_name varchar(20) not null,away_Team_name varchar(20) not null,match_date datetime not null,sport_type varchar(20) not null,competition varchar(20) not null,match_status varchar(20) not null,result varchar(20) null,odd float null,location varchar(20) null, visibility boolean not null default true,match_link varchar(20) not null,primary key(match_id))engine=MyISAM;
+ alter table user_roles add constraint FKrhfovtciq1l558cw6udg0h0d3 foreign key (role_id) references role (id);
+ alter table user_roles add constraint FK55itppkw3i07do3h7qoclqd4k foreign key (user_id) references user (id);
+ INSERT INTO user (id, username, password, salary, age) VALUES (1, 'user1', '$2a$04$Ye7/lJoJin6.m9sOJZ9ujeTgHEVM4VXgI2Ingpsnf9gXyXEXf/IlW', 3456, 33);

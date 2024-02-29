@@ -16,7 +16,9 @@
 package com.devglan.websocket.service;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
@@ -27,6 +29,7 @@ import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.stereotype.Service;
 
+import com.devglan.dao.CricketDataDTO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -39,6 +42,13 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 
 	private AtomicBoolean brokerAvailable = new AtomicBoolean();
 
+	private final Map<String, CricketDataDTO> lastUpdatedDataMap = new ConcurrentHashMap<>();
+
+
+	/*
+	 * @Autowired private LiveMatchRepository liveMatchRepository;
+	 */
+
 	@Autowired
 	public CricketDataService(MessageSendingOperations<String> messagingTemplate) {
 		this.messagingTemplate = messagingTemplate;
@@ -49,7 +59,11 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 		this.brokerAvailable.set(event.isBrokerAvailable());
 	}
 
-	public void sendCricketData(Map<String, Object> dataToSend) {
+	public void sendCricketData(String url, Map<String, Object> dataToSend) {
+		 // Extracting the desired part from the URL
+	    String[] parts = url.split("/");
+	    String match = parts[parts.length - 2]; // Get the second-to-last part of the URL
+	    
 
 		ObjectMapper objectMapper = new ObjectMapper();
 		for (Map.Entry<String, Object> entry : dataToSend.entrySet()) {
@@ -68,10 +82,46 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 			}
 			// Sending payload (jsonField) to the WebSocket topic (/topic/cricket.{key})
 			if (this.brokerAvailable.get()) {
-				messagingTemplate.convertAndSend("/topic/cricket." + key, jsonField);
+				messagingTemplate.convertAndSend("/topic/cricket." + match + "." + key, jsonField);
 			}
 		}
 
 	}
+
+	public void notifyNewMatch(String url) {
+		messagingTemplate.convertAndSend("/topic/live-matches", url);
+
+	}
+
+	public void notifyMatchStatusChange(String url, String status) {
+	    Map<String, Object> notification = new HashMap<>();
+	    notification.put("url", url);
+	    notification.put("status", status);
+
+	    ObjectMapper objectMapper = new ObjectMapper();
+	    try {
+	        String jsonPayload = objectMapper.writeValueAsString(notification);
+	        if (this.brokerAvailable.get()) {
+	            messagingTemplate.convertAndSend("/topic/live-matches", jsonPayload); 
+	        }
+	    } catch (JsonProcessingException e) {
+	        logger.error("Error converting match status notification to JSON", e);
+	    }
+	}
+
+	
+	 // Method to set the last updated data for a specific URL
+    public synchronized void setLastUpdatedData(String url, CricketDataDTO data) {
+        lastUpdatedDataMap.put(url, data);
+    }
+
+    // Method to get the last updated data for a specific URL
+    public synchronized CricketDataDTO getLastUpdatedData(String url) {
+        return lastUpdatedDataMap.get(url);
+    }
+    
+    
+    
+    
 
 }
