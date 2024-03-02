@@ -72,4 +72,9 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 		newUser.setSalary(user.getSalary());
         return userDao.save(newUser);
     }
+
+	@Override
+	public User updateUser(User user) {
+		return userDao.save(user);
+	}
 }

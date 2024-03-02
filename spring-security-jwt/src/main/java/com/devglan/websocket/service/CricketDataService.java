@@ -30,6 +30,7 @@ import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.stereotype.Service;
 
 import com.devglan.dao.CricketDataDTO;
+import com.devglan.model.Bets;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -55,6 +56,7 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 	}
 
 	@Override
+	
 	public void onApplicationEvent(BrokerAvailabilityEvent event) {
 		this.brokerAvailable.set(event.isBrokerAvailable());
 	}
@@ -90,6 +92,11 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 
 	public void notifyNewMatch(String url) {
 		messagingTemplate.convertAndSend("/topic/live-matches", url);
+
+	}
+	
+	public void notifyBetStatus(Bets bet) {
+		messagingTemplate.convertAndSend("/topic/bet-status", bet);
 
 	}
 

@@ -3,6 +3,8 @@ package com.devglan.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import javax.persistence.*;
+
+import java.math.BigDecimal;
 import java.util.Set;
 
 @Entity
@@ -20,6 +22,9 @@ public class User {
     private long salary;
     @Column
     private int age;
+    @Column
+    private BigDecimal balance;
+    
 
     @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JoinTable(name = "USER_ROLES", 
@@ -74,4 +79,14 @@ public class User {
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
     }
+
+	public BigDecimal getBalance() {
+		return balance;
+	}
+
+	public void setBalance(BigDecimal bigDecimal) {
+		this.balance = bigDecimal;
+	}
+    
+    
 }
