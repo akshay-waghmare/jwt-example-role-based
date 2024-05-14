@@ -3,9 +3,6 @@ package com.devglan.model;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.devglan.controller.JacksonCustomMarketDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-
 public class BetMarket {
 
 	Market market = new Market();

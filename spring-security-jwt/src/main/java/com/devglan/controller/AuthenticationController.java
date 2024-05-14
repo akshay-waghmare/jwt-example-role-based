@@ -17,7 +17,6 @@ import com.devglan.config.TokenProvider;
 import com.devglan.exception.UnAuthorizedException;
 import com.devglan.model.AuthToken;
 import com.devglan.model.LoginUser;
-import com.devglan.service.UserService;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -29,9 +28,6 @@ public class AuthenticationController {
 
 	@Autowired
 	private TokenProvider jwtTokenUtil;
-
-	@Autowired
-	private UserService userService;
 
 	@RequestMapping(value = "/generate-token", method = RequestMethod.POST)
 	public ResponseEntity<?> register(@RequestBody LoginUser loginUser)

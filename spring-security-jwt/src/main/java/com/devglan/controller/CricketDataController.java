@@ -201,6 +201,16 @@ public class CricketDataController {
 		}
 	}
 
+	@GetMapping("/bets")
+	public ResponseEntity<List<Bets>> getBetsForMatch(@RequestParam String url) {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		String currentUsername = authentication.getName();
+		User user = userService.findOne(currentUsername);
+
+		List<Bets> bets = betService.getBetsForMatch(url, user.getId());
+		return ResponseEntity.ok(bets);
+	}
+
 	@PostMapping("/placeBet")
 	@Transactional
 	public ResponseEntity<?> placeBet(@RequestBody Bets bet) {
@@ -212,60 +222,62 @@ public class CricketDataController {
 		// Use the UserService to fetch the User object based on the username
 		User user = userService.findOne(currentUsername);
 		if (user != null) {
-			
-			// Check if the user has enough balance to place the bet
-	        BigDecimal userBalance = user.getBalance();
-	        BigDecimal betAmount = bet.getAmount();
-	        
-			// If the user is found, associate the bet with the user
-	        boolean isBetValid = false;
-	        
-	        if ("back".equalsIgnoreCase(bet.getBetType()) && userBalance.compareTo(betAmount) >= 0) {
-	            // If it's a back bet and the user has enough balance, proceed
-	            isBetValid = true;
-	            // Deduct the bet amount from the user's balance
-	            user.setBalance(userBalance.subtract(betAmount));
-	        } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
-	            // For lay bets, you might have different logic, depending on your betting rules
-	            // Here, we assume the user can place the bet without balance restrictions
-	        	
-	            BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
-	            if (userBalance.compareTo(potentialPayout) >= 0) {
-	                isBetValid = true;
-	                // Here, you might want to reserve the potential payout amount from the user's balance
-	                // depending on your application's requirements.
-	                user.setBalance(userBalance.subtract(potentialPayout));
-	            }
-	            else {
-	            	 isBetValid = false;
-	            }
-	            // No balance deduction for lay bets in this example
-	        }
-	        
-	        if (isBetValid) {
-	            // Associate the bet with the user
-	            bet.setUser(user);
-	            // Set the placedAt time to the current date and time
-	            bet.setPlacedAt(new Date());
-	            // Set bet status as pending for now 
-	            bet.setStatus("Pending");
-	            // confirm/cancel bet with respect to the latest stable odds 
-	            betService.checkAndConfirmBet(bet,currentUsername);
-	            
-	            // Save the updated user balance	            
-	            userService.updateUser(user);
-	            // Save the bet using the BetService and store the returned instance
-	            Bets savedBet = betService.placeBet(bet);
-	            // Respond with the saved bet details
-	            return ResponseEntity.ok(savedBet);
-	        } else {
-	            // Respond indicating the user does not have enough balance
-	            return ResponseEntity.badRequest().body("Insufficient balance for this bet.");
-	        }
-		} else {
-	        // If the user is not found, respond with an Unauthorized status
-	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found.");
-	    }
-	}
 
+			// Check if the user has enough balance to place the bet
+			BigDecimal userBalance = user.getBalance();
+			BigDecimal betAmount = bet.getAmount();
+
+			// If the user is found, associate the bet with the user
+			boolean isBetValid = false;
+
+			if ("back".equalsIgnoreCase(bet.getBetType()) && userBalance.compareTo(betAmount) >= 0) {
+				// If it's a back bet and the user has enough balance, proceed
+				isBetValid = true;
+				// Deduct the bet amount from the user's balance
+				//user.setBalance(userBalance.subtract(betAmount));
+			} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+				// For lay bets, you might have different logic, depending on your betting rules
+				// Here, we assume the user can place the bet without balance restrictions
+
+				BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
+				if (userBalance.compareTo(potentialPayout) >= 0) {
+					isBetValid = true;
+					// Here, you might want to reserve the potential payout amount from the user's
+					// balance
+					// depending on your application's requirements.
+					//user.setBalance(userBalance.subtract(potentialPayout));
+				} else {
+					isBetValid = false;
+					//cancel the bet if not valid 
+				}
+				// No balance deduction for lay bets in this example
+			}
+
+			if (isBetValid) {
+				// Associate the bet with the user
+				bet.setUser(user);
+				// Set the placedAt time to the current date and time
+				bet.setPlacedAt(new Date());
+				// Set bet status as pending for now
+				bet.setStatus("Pending");
+				// confirm/cancel bet with respect to the latest stable odds
+				betService.checkAndConfirmBet(bet, currentUsername);
+
+				// Save the updated user balance
+				userService.updateUser(user);
+				// Save the bet using the BetService and store the returned instance
+				Bets savedBet = betService.placeBet(bet);
+				// Respond with the saved bet details
+				return ResponseEntity.ok(savedBet);
+			} else {
+				
+				cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+				// Respond indicating the user does not have enough balance				
+				return ResponseEntity.badRequest().body("Insufficient balance for this bet.");
+			}
+		} else {
+			// If the user is not found, respond with an Unauthorized status
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found.");
+		}
+	}
 }

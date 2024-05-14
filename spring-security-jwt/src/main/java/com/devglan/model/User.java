@@ -24,6 +24,8 @@ public class User {
     private int age;
     @Column
     private BigDecimal balance;
+    @Column
+    private BigDecimal exposure; // Added exposure column
     
 
     @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
@@ -79,7 +81,7 @@ public class User {
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
     }
-
+    
 	public BigDecimal getBalance() {
 		return balance;
 	}
@@ -87,6 +89,14 @@ public class User {
 	public void setBalance(BigDecimal bigDecimal) {
 		this.balance = bigDecimal;
 	}
+	
+	public BigDecimal getExposure() {
+        return exposure;
+    }
+
+    public void setExposure(BigDecimal exposure) {
+        this.exposure = exposure;
+    }
     
     
 }

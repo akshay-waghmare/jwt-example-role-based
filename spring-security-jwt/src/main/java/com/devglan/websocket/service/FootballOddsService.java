@@ -16,27 +16,16 @@
 package com.devglan.websocket.service;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.MathContext;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -80,7 +69,6 @@ public class FootballOddsService implements ApplicationListener<BrokerAvailabili
 
 		public String getOddsInplay() {
 			OkHttpClient client = new OkHttpClient();
-			 ObjectMapper objectMapper = new ObjectMapper();
 			 Request request = new Request.Builder()
 						.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/inplaying")
 						.get()
