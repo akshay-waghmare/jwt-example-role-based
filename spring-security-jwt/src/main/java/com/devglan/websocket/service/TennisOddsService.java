@@ -5,15 +5,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.aspectj.weaver.patterns.ThisOrTargetAnnotationPointcut;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -45,10 +42,9 @@ public class TennisOddsService implements ApplicationListener<BrokerAvailability
 			String inplayData = this.getOddsInplay();
 		//System.out.println(inplayData.toString());
 		if (this.brokerAvailable.get()) {
-			//sending payload quote to destination "/topic/price.inplay"
-				System.out.println("*****nirmal****");
-				
-				this.messagingTemplate.convertAndSend("/topic/tennis.inplay", inplayData);
+				if(inplayData!=null) {					
+					this.messagingTemplate.convertAndSend("/topic/tennis.inplay", inplayData);
+				}
 			}
 		}
 
@@ -57,18 +53,14 @@ public class TennisOddsService implements ApplicationListener<BrokerAvailability
 
 	public String getOddsInplay() {
 		OkHttpClient client = new OkHttpClient();
-		 ObjectMapper objectMapper = new ObjectMapper();
 		 Request request = new Request.Builder()
 				 .url("https://api.sofascore.com/api/v1/sport/tennis/events/live")
 					.get()
 					.build();
 
-		 System.out.println("valvvvvvvvvvvvvvi");
 		//implement global error controller advice
 		try {
 			ResponseBody responseBody = client.newCall(request).execute().body();
-			System.out.println(request.toString());
-			//System.out.println("nnnnnnnnnnnnnnnnnnnnnn");
 			
 			return responseBody.string();
 		

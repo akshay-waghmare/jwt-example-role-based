@@ -13,6 +13,34 @@ public class LiveMatch {
 	private Long id;
 
 	private String url;
+	
+	private boolean isDeleted = false; // Soft delete flag
+    private String lastKnownState; // JSON string to store the last known state
+    private int deletionAttempts = 0; // Counter for deletion attempts
+
+	public boolean isDeleted() {
+		return isDeleted;
+	}
+
+	public void setDeleted(boolean isDeleted) {
+		this.isDeleted = isDeleted;
+	}
+
+	public String getLastKnownState() {
+		return lastKnownState;
+	}
+
+	public void setLastKnownState(String lastKnownState) {
+		this.lastKnownState = lastKnownState;
+	}
+
+	public int getDeletionAttempts() {
+		return deletionAttempts;
+	}
+
+	public void setDeletionAttempts(int deletionAttempts) {
+		this.deletionAttempts = deletionAttempts;
+	}
 
 	public LiveMatch() {
 	}

@@ -34,13 +34,22 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 
 			for (LiveMatch match : allMatches) {
 				if (!urlList.contains(match.getUrl())) {
-					liveMatchRepository.delete(match);
-					notifyMatchStatusChange(match.getUrl(), "deleted");
+					//liveMatchRepository.delete(match);
+					match.setDeletionAttempts(match.getDeletionAttempts() + 1);
+					if(match.getDeletionAttempts() >= 3) {						
+						CricketDataDTO lastUpdatedData = cricketDataService.getLastUpdatedData(appendBaseUrl(match.getUrl()));
+						if(lastUpdatedData != null) {
+							match.setLastKnownState(lastUpdatedData.getCurrentBall());
+							match.setDeleted(true);
+						}
+						notifyMatchStatusChange(match.getUrl(), "deleted");
+					}
+					liveMatchRepository.save(match);
 				}
 			}
 			
 			for (String url : urls) {
-				if (!liveMatchRepository.existsByUrl(url)) {
+				if (!liveMatchRepository.existsByUrlAndIsDeletedFalse(url)) {
 					LiveMatch liveMatch = new LiveMatch(url);
 					liveMatchRepository.save(liveMatch);
 					// Notify about the new match over WebSocket
@@ -64,7 +73,7 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 	
 	
 	public List<LiveMatch> findAll() {
-        return liveMatchRepository.findAll();
+        return liveMatchRepository.findByIsDeletedFalse();
     }
 	
 	public ResponseEntity<CricketDataDTO> fetchAndSendData(String url) {

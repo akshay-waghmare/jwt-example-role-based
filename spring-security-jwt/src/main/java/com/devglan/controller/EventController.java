@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.devglan.model.Event;
-import com.devglan.model.Market;
 import com.devglan.model.Markets;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -66,7 +65,6 @@ public class EventController {
 	public ResponseEntity<String> getUpcomingEventsForFootball() {
 
 		OkHttpClient client = new OkHttpClient();
-		ObjectMapper objectMapper = new ObjectMapper();
 		Request request = new Request.Builder()
 				.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/upcoming").get()
 				.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
@@ -92,7 +90,6 @@ public class EventController {
 	public ResponseEntity<String> getInplayEventsForFootball() {
 
 		OkHttpClient client = new OkHttpClient();
-		ObjectMapper objectMapper = new ObjectMapper();
 		Request request = new Request.Builder()
 				.url("https://football-betting-odds1.p.rapidapi.com/provider1/live/inplaying").get()
 				.addHeader("x-rapidapi-host", "football-betting-odds1.p.rapidapi.com")
@@ -129,7 +126,6 @@ public class EventController {
 			ResponseBody responseBody = client.newCall(request).execute().body();
 			Markets entity = objectMapper.readValue(responseBody.string(), Markets.class);
 
-			List<Market> result = entity.getResult();
 
 			return new ResponseEntity<Markets>(entity, HttpStatus.OK);
 		} catch (IOException e) {
@@ -147,7 +143,6 @@ public class EventController {
 
 		System.out.println(cricketInplayInfo);
 		OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
-		ObjectMapper objectMapper = new ObjectMapper();
 		Request request = new Request.Builder().url("https://api.sofascore.com/api/v1/sport/cricket/events/live")
 				.build();
 		try {
@@ -171,7 +166,6 @@ public class EventController {
 
 		System.out.println(cricketUpcomingInfo);
 		OkHttpClient client = new OkHttpClient();// client communicates with the server eg - browser
-		ObjectMapper objectMapper = new ObjectMapper();
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 		String todayDate = LocalDate.now().format(formatter);
 
