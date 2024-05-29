@@ -65,4 +65,19 @@ public class LiveMatch {
 		this.url = url;
 	}
 
+	public boolean isFinished() {
+		return isDeleted();
+	}
+
+	public String getWinningTeam() {
+		if (lastKnownState != null && lastKnownState.contains("won by")) {
+            String[] parts = lastKnownState.split(" won by");
+            if (parts.length > 0) {
+                return parts[0].trim();
+            }
+        }
+        return null;
+	}
+
+
 }

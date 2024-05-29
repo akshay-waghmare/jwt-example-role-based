@@ -1,5 +1,8 @@
 package com.devglan.dao;
 
+import javax.persistence.Embeddable;
+
+@Embeddable
 public class MatchOdds {
 	
 	private String teamName; // or use a specific enumeration for type (Team, Draw)

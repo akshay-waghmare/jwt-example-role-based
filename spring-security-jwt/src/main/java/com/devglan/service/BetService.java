@@ -14,12 +14,14 @@ import javax.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.devglan.dao.BetRepository;
 import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.MatchOdds;
 import com.devglan.model.Bets;
+import com.devglan.model.LiveMatch;
 import com.devglan.model.User;
 import com.devglan.websocket.service.CricketDataService;
 
@@ -45,6 +47,44 @@ public class BetService {
 
 	public Bets placeBet(Bets bet) {
 		return betRepository.save(bet);
+	}
+
+	@Async("taskScheduler")
+	@Scheduled(fixedRate = 60000) // Runs every 60 seconds
+	public void checkMatchResults() {
+		List<LiveMatch> liveMatches = liveMatchService.findAll();
+		for (LiveMatch match : liveMatches) {
+			if (match.isFinished()) {
+				distributeExposureAndWinnings(match);
+			}
+		}
+	}
+
+	private void distributeExposureAndWinnings(LiveMatch match) {
+
+		List<Bets> betsForMatch = betRepository.findByMatchUrl(match.getUrl());
+
+		for (Bets bet : betsForMatch) {
+			User user = bet.getUser();
+			String winningTeam = match.getWinningTeam();
+	        if (winningTeam == null) {
+	            return; // No winning team found, skip processing
+	        }
+	        
+			if ("Confirmed".equalsIgnoreCase(bet.getStatus())) {
+				/*
+				 * if (bet.getTeamName().equalsIgnoreCase(match.getWinningTeam())) { // User won
+				 * the bet BigDecimal winnings =
+				 * bet.getAmount().multiply(bet.getOdd()).subtract(bet.getAmount());
+				 * user.setBalance(user.getBalance().add(winnings).add(bet.getAmount())); //
+				 * Adding bet amount back bet.setStatus("Won"); } else { // User lost the bet
+				 * BigDecimal exposure = bet.getAmount();
+				 * user.setBalance(user.getBalance().subtract(exposure)); // Deducting exposure
+				 * bet.setStatus("Lost"); } betRepository.save(bet);
+				 * userService.updateUser(user);
+				 */
+			}
+		}
 	}
 
 	@Async("taskExecutor")
@@ -115,28 +155,26 @@ public class BetService {
 	}
 
 	private boolean confirmTestBet(Bets bet, CricketDataDTO latestOdds) {
-	    boolean confirmBet = false;
-	    BigDecimal hundred = BigDecimal.valueOf(100);
-	    BigDecimal one = BigDecimal.ONE;
+		boolean confirmBet = false;
+		BigDecimal hundred = BigDecimal.valueOf(100);
+		BigDecimal one = BigDecimal.ONE;
 
-	    // Find the MatchOdds instance for the team specified in the bet
-	    MatchOdds matchingOdds = latestOdds.getMatchOdds().stream()
-	        .filter(odds -> odds.getTeamName().equalsIgnoreCase(bet.getTeamName()))
-	        .findFirst()
-	        .orElse(null);
+		// Find the MatchOdds instance for the team specified in the bet
+		MatchOdds matchingOdds = latestOdds.getMatchOdds().stream()
+				.filter(odds -> odds.getTeamName().equalsIgnoreCase(bet.getTeamName())).findFirst().orElse(null);
 
-	    // If a matching odds instance is found, compare the odds
-	    if (matchingOdds != null) {
-	        if ("back".equals(bet.getBetType()) && bet.getOdd()
-	                .compareTo(new BigDecimal(matchingOdds.getOdds().getBackOdds())) <= 0) {
-	            confirmBet = true;
-	        } else if ("lay".equals(bet.getBetType()) && bet.getOdd().subtract(one).multiply(hundred)
-	                .compareTo(new BigDecimal(matchingOdds.getOdds().getBackOdds())) >= 0) {
-	            confirmBet = true;
-	        }
-	    }
-	    
-	    return confirmBet;
+		// If a matching odds instance is found, compare the odds
+		if (matchingOdds != null) {
+			if ("back".equals(bet.getBetType())
+					&& bet.getOdd().compareTo(new BigDecimal(matchingOdds.getOdds().getBackOdds())) <= 0) {
+				confirmBet = true;
+			} else if ("lay".equals(bet.getBetType()) && bet.getOdd().subtract(one).multiply(hundred)
+					.compareTo(new BigDecimal(matchingOdds.getOdds().getBackOdds())) >= 0) {
+				confirmBet = true;
+			}
+		}
+
+		return confirmBet;
 	}
 
 	private CricketDataDTO fetchLatestOdds(Bets bet, CricketDataDTO latestOdds) {
@@ -330,9 +368,7 @@ public class BetService {
 
 		return adjustedExposures;
 	}
-	
-	
-	
+
 	private void processMultiTeamBets(Bets bet, String currentUsername, Map<String, List<Bets>> betsByTeam) {
 
 		Map<String, Map<String, BigDecimal>> initialExposures = calculateMatchExposures(betsByTeam);

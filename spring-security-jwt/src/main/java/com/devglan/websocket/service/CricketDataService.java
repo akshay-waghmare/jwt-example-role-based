@@ -15,8 +15,10 @@
  */
 package com.devglan.websocket.service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,7 +32,11 @@ import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.stereotype.Service;
 
 import com.devglan.dao.CricketDataDTO;
+import com.devglan.dao.OversData;
 import com.devglan.model.Bets;
+import com.devglan.model.CricketDataEntity;
+import com.devglan.repository.CricketDataRepository;
+import com.devglan.repository.OversDataRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -44,6 +50,14 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 	private AtomicBoolean brokerAvailable = new AtomicBoolean();
 
 	private final Map<String, CricketDataDTO> lastUpdatedDataMap = new ConcurrentHashMap<>();
+	
+    private final CricketDataRepository cricketDataRepository;
+    
+    @Autowired
+    private OversDataRepository oversDataRepository;
+
+	
+	
 
 
 	/*
@@ -51,8 +65,10 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 	 */
 
 	@Autowired
-	public CricketDataService(MessageSendingOperations<String> messagingTemplate) {
+	public CricketDataService(MessageSendingOperations<String> messagingTemplate, CricketDataRepository cricketDataRepository) {
 		this.messagingTemplate = messagingTemplate;
+        this.cricketDataRepository = cricketDataRepository;
+		
 	}
 
 	@Override
@@ -119,12 +135,72 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 	
 	 // Method to set the last updated data for a specific URL
     public synchronized void setLastUpdatedData(String url, CricketDataDTO data) {
-        lastUpdatedDataMap.put(url, data);
+        //lastUpdatedDataMap.put(url, data);
+        CricketDataEntity entity = convertDtoToEntity(url, data);
+        cricketDataRepository.save(entity);
     }
 
     // Method to get the last updated data for a specific URL
     public synchronized CricketDataDTO getLastUpdatedData(String url) {
-        return lastUpdatedDataMap.get(url);
+        //return lastUpdatedDataMap.get(url);
+    	CricketDataEntity entity = cricketDataRepository.findById(url).orElse(null);
+        return convertEntityToDto(entity);
+    	
+    	
+    }
+    
+    private CricketDataEntity convertDtoToEntity(String url, CricketDataDTO data) {
+        CricketDataEntity entity = new CricketDataEntity();
+        entity.setUrl(url);
+        entity.setMatchOdds(data.getMatchOdds());
+        entity.setTeamOdds(data.getTeamOdds());
+        entity.setBattingTeamName(data.getBattingTeamName());
+        entity.setOver(data.getOver());
+        entity.setScore(data.getScore());
+        entity.setCurrentBall(data.getCurrentBall());
+        entity.setRunsOnBall(data.getRunsOnBall());
+        entity.setFavTeam(data.getFavTeam());
+        entity.setSessionOdds(data.getSessionOdds());
+        entity.setCurrentRunRate(data.getCurrentRunRate());
+        entity.setFinalResultText(data.getFinalResultText());
+//        entity.setOversData(data.getOversData());
+        //entity.setTossWonCountry(data.getTossWonCountry());
+        //entity.setBatOrBallSelected(data.getBatOrBallSelected());
+        //entity.setUpdatedTimeStamp());
+     // Save each OversData
+        List<OversData> oversDataList = data.getOversData();
+        if (oversDataList != null) {
+            List<OversData> savedOversDataList = new ArrayList<>();
+            for (OversData oversData : oversDataList) {
+                OversData savedOversData = oversDataRepository.save(oversData);
+                savedOversDataList.add(savedOversData);
+            }
+            entity.setOversData(savedOversDataList);
+        }
+        return entity;
+    }
+    
+    private CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        CricketDataDTO data = new CricketDataDTO();
+        data.setMatchOdds(entity.getMatchOdds());
+        data.setTeamOdds(entity.getTeamOdds());
+        data.setBattingTeamName(entity.getBattingTeamName());
+        data.setOver(entity.getOver());
+        data.setScore(entity.getScore());
+        data.setCurrentBall(entity.getCurrentBall());
+        data.setRunsOnBall(entity.getRunsOnBall());
+        data.setFavTeam(entity.getFavTeam());
+        data.setSessionOdds(entity.getSessionOdds());
+        data.setCurrentRunRate(entity.getCurrentRunRate());
+        data.setFinalResultText(entity.getFinalResultText());
+        data.setOversData(entity.getOversData());
+        //data.setTossWonCountry(entity.getTossWonCountry());
+        //data.setBatOrBallSelected(entity.getBatOrBallSelected());
+        //data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
+        return data;
     }
     
     

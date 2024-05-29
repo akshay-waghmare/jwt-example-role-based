@@ -1,5 +1,8 @@
 package com.devglan.dao;
 
+import javax.persistence.Embeddable;
+
+@Embeddable
 public class SessionOdds {
 	
 	private String sessionBackOdds;

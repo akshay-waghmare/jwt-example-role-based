@@ -35,16 +35,19 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 			for (LiveMatch match : allMatches) {
 				if (!urlList.contains(match.getUrl())) {
 					//liveMatchRepository.delete(match);
-					match.setDeletionAttempts(match.getDeletionAttempts() + 1);
 					if(match.getDeletionAttempts() >= 3) {						
 						CricketDataDTO lastUpdatedData = cricketDataService.getLastUpdatedData(appendBaseUrl(match.getUrl()));
 						if(lastUpdatedData != null) {
 							match.setLastKnownState(lastUpdatedData.getCurrentBall());
 							match.setDeleted(true);
+							liveMatchRepository.save(match);
 						}
 						notifyMatchStatusChange(match.getUrl(), "deleted");
 					}
-					liveMatchRepository.save(match);
+					else {						
+						match.setDeletionAttempts(match.getDeletionAttempts() + 1);
+						liveMatchRepository.save(match);
+					}
 				}
 			}
 			
