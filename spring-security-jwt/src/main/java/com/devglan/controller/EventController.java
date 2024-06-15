@@ -38,15 +38,9 @@ public class EventController {
 
 		// abstract this logic to service layer later on
 
-		OkHttpClient client = new OkHttpClient();
 		ObjectMapper objectMapper = new ObjectMapper();
-		Request request = new Request.Builder().url("https://pinnacle-odds.p.rapidapi.com/v2/sports").get()
-				.addHeader("x-rapidapi-host", "pinnacle-odds.p.rapidapi.com")
-				.addHeader("x-rapidapi-key", "927875fad7mshc0dd3c20a97f03ap1854f7jsnc0b1a557da8e").build();
-
 		// implement global error controller advice
 		try {
-			ResponseBody responseBody = client.newCall(request).execute().body();
 			// for development purposes avoiding calls as calls are limited so hard coding
 			String events = "[{\"id\":1,\"name\":\"Football\"},{\"id\":2,\"name\":\"Tennis\"},{\"id\":3,\"name\":\"Basketball\"}]";
 			List<Event> entity = objectMapper.readValue(events, new TypeReference<List<Event>>() {

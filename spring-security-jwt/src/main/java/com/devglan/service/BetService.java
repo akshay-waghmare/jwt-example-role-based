@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -50,9 +51,9 @@ public class BetService {
 	}
 
 	@Async("taskScheduler")
-	@Scheduled(fixedRate = 60000) // Runs every 60 seconds
+	@Scheduled(fixedRate = 60000) // Runs every 5 minutes
 	public void checkMatchResults() {
-		List<LiveMatch> liveMatches = liveMatchService.findAll();
+		List<LiveMatch> liveMatches = liveMatchService.findAllFinishedMatches();
 		for (LiveMatch match : liveMatches) {
 			if (match.isFinished()) {
 				distributeExposureAndWinnings(match);
@@ -60,31 +61,93 @@ public class BetService {
 		}
 	}
 
-	private void distributeExposureAndWinnings(LiveMatch match) {
-
-		List<Bets> betsForMatch = betRepository.findByMatchUrl(match.getUrl());
-
-		for (Bets bet : betsForMatch) {
-			User user = bet.getUser();
-			String winningTeam = match.getWinningTeam();
-	        if (winningTeam == null) {
-	            return; // No winning team found, skip processing
-	        }
-	        
-			if ("Confirmed".equalsIgnoreCase(bet.getStatus())) {
-				/*
-				 * if (bet.getTeamName().equalsIgnoreCase(match.getWinningTeam())) { // User won
-				 * the bet BigDecimal winnings =
-				 * bet.getAmount().multiply(bet.getOdd()).subtract(bet.getAmount());
-				 * user.setBalance(user.getBalance().add(winnings).add(bet.getAmount())); //
-				 * Adding bet amount back bet.setStatus("Won"); } else { // User lost the bet
-				 * BigDecimal exposure = bet.getAmount();
-				 * user.setBalance(user.getBalance().subtract(exposure)); // Deducting exposure
-				 * bet.setStatus("Lost"); } betRepository.save(bet);
-				 * userService.updateUser(user);
-				 */
-			}
+	@Transactional
+	public void distributeExposureAndWinnings(LiveMatch match) {
+		String winningTeam = match.getWinningTeam();
+		if (winningTeam == null) {
+			return; // No winning team found, skip processing
 		}
+
+		List<Bets> betsForMatch = betRepository.findByMatchUrlContainingAndConfirmed(match.getUrl());
+
+		// Group bets by user for exposure reversal
+		Map<User, List<Bets>> userBetsMap = betsForMatch.stream().collect(Collectors.groupingBy(Bets::getUser));
+
+		for (Entry<User, List<Bets>> entry : userBetsMap.entrySet()) { // Line 49
+			User user = entry.getKey();
+			List<Bets> userBets = entry.getValue();
+
+			// Group bets by team to handle multi-team logic if necessary
+			Map<String, List<Bets>> betsByTeam = userBets.stream().collect(Collectors.groupingBy(Bets::getTeamName));
+
+			if (betsByTeam.size() == 1) {
+				// Bets are only on one team
+				List<Bets> singleTeamBets = betsByTeam.values().iterator().next();
+				BigDecimal exposure = calculateNetExposuresInWinLoseCase(singleTeamBets);
+				user.setExposure(user.getExposure().subtract(exposure.abs()));
+			} else if (betsByTeam.size() > 1) {
+				// Bets are on multiple teams
+				Map<String, BigDecimal> adjustedExposuresForAllTeams = adjustExposuresForAllTeams(
+						calculateMatchExposures(betsByTeam));
+
+				BigDecimal overAllMaxExposure = BigDecimal.ZERO;
+
+				for (String team : adjustedExposuresForAllTeams.keySet()) { // Line 67
+					BigDecimal exposure = adjustedExposuresForAllTeams.getOrDefault(team,
+							BigDecimal.ZERO);
+										
+					if (exposure.compareTo(BigDecimal.ZERO) < 0 ) {
+						overAllMaxExposure = exposure.min(overAllMaxExposure);
+					}
+					
+				}
+
+				user.setExposure(user.getExposure().subtract(overAllMaxExposure.abs()));
+			}
+
+			if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 76
+				user.setExposure(BigDecimal.ZERO);
+			}
+			
+			userService.updateUser(user); // Line 78
+		}
+
+		for (Bets bet : betsForMatch) { // Line 17
+			User user = bet.getUser();
+
+			BigDecimal stake = bet.getAmount();
+			BigDecimal odds = bet.getOdd();
+			BigDecimal liability = stake.multiply(odds.subtract(BigDecimal.ONE));
+			BigDecimal winnings = stake.multiply(odds).subtract(stake);
+
+			// Ensure exposure does not go negative
+			if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 25
+				user.setExposure(BigDecimal.ZERO);
+			}
+
+			if (bet.getTeamName().equalsIgnoreCase(winningTeam)) {
+				// User won the bet
+				if ("back".equalsIgnoreCase(bet.getBetType())) {
+					user.setBalance(user.getBalance().add(winnings)); // Add winnings and return stake
+					bet.setStatus("Won");
+				} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+					user.setBalance(user.getBalance().subtract(liability)); // Subtract liability
+					bet.setStatus("Lost");
+				}
+			} else {
+				// User lost the bet
+				if ("back".equalsIgnoreCase(bet.getBetType())) {
+					user.setBalance(user.getBalance().subtract(stake)); // Subtract stake
+					bet.setStatus("Lost");
+				} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+					user.setBalance(user.getBalance().add(stake)); // Return stake
+					bet.setStatus("Won");
+				}
+			}
+			betRepository.save(bet);
+			userService.updateUser(user); // Line 43
+		}
+
 	}
 
 	@Async("taskExecutor")
@@ -201,18 +264,19 @@ public class BetService {
 		}
 
 		if (confirmBet) {
-			bet.setStatus("Confirmed");
+
 			List<Bets> allBetsForMatch = getBetsForMatch(bet.getMatchUrl(), bet.getUser().getId());
 
 			Map<String, List<Bets>> betsByTeam = allBetsForMatch.stream()
 					.collect(Collectors.groupingBy(Bets::getTeamName));
 
-			if ((betsByTeam.size() == 1) && betsByTeam.containsKey(bet.getTeamName())) {
-				// Logic when bets are only on one team (existing logic applies)
-				singleTeamBetProcessing(bet, currentUsername, betsByTeam.get(bet.getTeamName()));
-			} else if (betsByTeam.size() > 1) {
+			if (betsByTeam.size() > 1) {
 				// Adjust logic to handle bets on both teams
 				processMultiTeamBets(bet, currentUsername, betsByTeam);
+			} else if (betsByTeam.size() == 1) {
+				// Logic when bets are only on one team
+				betsByTeam.get(bet.getTeamName()).remove(bet);
+				singleTeamBetProcessing(bet, currentUsername, betsByTeam.get(bet.getTeamName()));
 			} else {
 				// Handle any other unexpected scenario (e.g., no bets or bets on an unexpected
 				// team)
@@ -234,12 +298,17 @@ public class BetService {
 
 	private void singleTeamBetProcessing(Bets bet, String currentUsername, List<Bets> allBetsForMatch) {
 		Bets updatedBet;
+		// This filters the list of bets to include only those that are for the same
+		// team as the current bet.
 		allBetsForMatch = allBetsForMatch.stream().filter(matchBet -> matchBet.getTeamName().equals(bet.getTeamName()))
 				.collect(Collectors.toList());
-		// Temporarily add the current bet to the list for exposure calculation
+		// This calculates the total exposure for the user before adding the current
+		// bet.
 		BigDecimal maxOverallExposurePrevious = calculateNetExposuresInWinLoseCase(allBetsForMatch);
 		bet.setStatus("Confirmed");
+		// Temporarily add the current bet to the list for exposure calculation also
 		allBetsForMatch.add(bet);
+		// This calculates the total exposure for the user after adding the current bet.
 		BigDecimal maxOverallExposure = calculateNetExposuresInWinLoseCase(allBetsForMatch);
 		// Remove the current bet from the list if not intended to be permanently added
 		// at this stage
@@ -273,11 +342,6 @@ public class BetService {
 	private void processTestMatchBets(Bets bet, String currentUsername, Map<String, List<Bets>> betsByTeam) {
 		// Preliminary checks and setup
 		List<Bets> allBetsForMatch = getBetsForMatch(bet.getMatchUrl(), bet.getUser().getId());
-
-		// Group bets by outcome (Team A, Team B, Draw) to process logic for multiple
-		// outcomes
-		Map<String, List<Bets>> betsByOutcome = allBetsForMatch.stream()
-				.collect(Collectors.groupingBy(Bets::getTeamName));
 
 		Map<String, BigDecimal> initialAdjustedExposures = calculateAdjustedExposures(allBetsForMatch);
 
@@ -384,24 +448,68 @@ public class BetService {
 
 	}
 
+
+	
 	private void adjustUserExposureBasedOnBet(User user, Bets bet, Map<String, BigDecimal> adjustedExposures,
 			Map<String, BigDecimal> postBetadjustedExposures) {
-		BigDecimal prvWinExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Win");
-		BigDecimal prvLoseExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
-		BigDecimal maxPrvExposure = prvWinExposure.abs().max(prvLoseExposure.abs());
+//		BigDecimal prvWinExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Win");
+//		BigDecimal prvLoseExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
+//		BigDecimal maxPrvExposure = BigDecimal.ZERO;
+//
+//		// Negative values of exposure indicate a potential loss. By focusing on the
+//		// most negative value (i.e., the maximum potential loss), the system ensures
+//		// that the user's risk is properly managed.
+//		// Goal: Find the maximum potential loss (maxPrvExposure) before placing the new
+//		// bet.
+//		if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+//			// Both are negative, compare to find the more negative value
+//			maxPrvExposure = prvWinExposure.min(prvLoseExposure);
+//		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0) {
+//			// Only prvWinExposure is negative
+//			maxPrvExposure = prvWinExposure;
+//		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+//			// Only prvLoseExposure is negative
+//			maxPrvExposure = prvLoseExposure;
+//		}
 
 		// here
 		BigDecimal updtWinExposure = postBetadjustedExposures.get(bet.getTeamName() + " Adjusted Win");
 		BigDecimal updtLoseExposure = postBetadjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
-		BigDecimal updtMaxExposure = updtWinExposure.abs().max(updtLoseExposure.abs());
+		BigDecimal updtMaxExposure = BigDecimal.ZERO;
 
-		BigDecimal exposureDifference = updtMaxExposure.subtract(maxPrvExposure);// if positive means exposure increased
+		// Negative values of exposure indicate a potential loss. By focusing on the
+		// most negative value (i.e., the maximum potential loss), the system ensures
+		// that the user's risk is properly managed.
+		// Goal: Find the maximum potential loss (updtMaxExposure) after placing the new
+		// bet.
+		if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0 && updtLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Both are negative, compare to find the more negative value
+			// When both prvWinExposure and prvLoseExposure are negative, it indicates that
+			// in both win and lose scenarios, the user will incur a loss. The goal is to
+			// identify which scenario leads to a greater loss.
+			updtMaxExposure = updtWinExposure.min(updtLoseExposure);
+		} else if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Only prvWinExposure is negative
+			updtMaxExposure = updtWinExposure;
+		} else if (updtLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Only prvLoseExposure is negative
+			updtMaxExposure = updtLoseExposure;
+		}
 
-		BigDecimal totalPotentialExposure = calculateTotalPotentialExposure(user, exposureDifference);
-		confirmOrCancelBetAndUpdateUser(user, bet, totalPotentialExposure);
+		// By calculating the difference between the new and old maximum potential
+		// losses, the system can determine how the user's risk profile has changed due
+		// to the new bet
+		// Goal: Calculate the difference in the worst-case scenario of potential loss
+		// due to the new bet.
+//		BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
+
+		// Goal: Update the user's total potential exposure and decide whether to
+		// confirm or cancel the bet based on this updated exposure.
+//		BigDecimal totalPotentialExposure = calculateTotalPotentialExposure(user, updtMaxExposure);
+		confirmOrCancelBetAndUpdateUser(user, bet, updtMaxExposure);
 	}
 
-	private Map<String, BigDecimal> adjustExposuresForAllTeams(Map<String, Map<String, BigDecimal>> initialExposures) {
+	public Map<String, BigDecimal> adjustExposuresForAllTeams(Map<String, Map<String, BigDecimal>> initialExposures) {
 		Map<String, BigDecimal> adjustedExposures = new HashMap<>();
 
 		initialExposures.forEach((team, exposures) -> {
@@ -431,7 +539,7 @@ public class BetService {
 
 	private void confirmOrCancelBetAndUpdateUser(User user, Bets bet, BigDecimal totalPotentialExposure) {
 		if (user.getBalance().compareTo(totalPotentialExposure) >= 0) {
-			user.setExposure(totalPotentialExposure);
+			user.setExposure(user.getExposure().add(totalPotentialExposure.abs()));
 			userService.updateUser(user);
 			bet.setStatus("Confirmed");
 			betRepository.save(bet);
@@ -444,9 +552,24 @@ public class BetService {
 	private void updateExposuresWithCurrentBet(Bets bet, Map<String, List<Bets>> betsByTeam) {
 		// This method assumes betsByTeam is mutable and directly updates it
 		List<Bets> teamBets = betsByTeam.getOrDefault(bet.getTeamName(), new ArrayList<>());
+
+		// Change the status of all pending bets to "Confirmed" if they match the
+		// received bet
+		teamBets.forEach(existingBet -> {
+			if ("Pending".equals(existingBet.getStatus()) && areBetsEqual(bet, existingBet)) {
+				existingBet.setStatus("Confirmed");
+			}
+		});
+
 		bet.setStatus("Confirmed");
-		teamBets.add(bet);
-		betsByTeam.put(bet.getTeamName(), teamBets);
+	}
+
+	private boolean areBetsEqual(Bets bet, Bets existingBet) {
+		return bet.getBetType().equals(existingBet.getBetType())
+				&& bet.getAmount().compareTo(existingBet.getAmount()) == 0
+				&& bet.getOdd().compareTo(existingBet.getOdd()) == 0
+				&& bet.getTeamName().equals(existingBet.getTeamName())
+				&& bet.getUser().getId() == (existingBet.getUser().getId());
 	}
 
 	public Bets cancelBet(Bets bet) {
@@ -459,7 +582,7 @@ public class BetService {
 		return betRepository.findByMatchUrlAndUserId(matchUrl, userId);
 	}
 
-	Map<String, Map<String, BigDecimal>> calculateMatchExposures(Map<String, List<Bets>> betsByTeam) {
+	public Map<String, Map<String, BigDecimal>> calculateMatchExposures(Map<String, List<Bets>> betsByTeam) {
 		Map<String, Map<String, BigDecimal>> matchExposures = new HashMap<>();
 
 		betsByTeam.forEach((teamName, teamBets) -> {
@@ -509,15 +632,21 @@ public class BetService {
 	}
 
 	public BigDecimal calculateNetExposuresInWinLoseCase(List<Bets> bets) {
+		// Total stake for all lay bets.
 		BigDecimal netLayStake = BigDecimal.ZERO;
+		// Total stake for all back bets.
 		BigDecimal netBackStake = BigDecimal.ZERO;
 
+		// Total exposure (potential liability) for all lay bets.
 		BigDecimal netLayExposure = BigDecimal.ZERO;
+		// Total exposure (potential profit) for all back bets.
 		BigDecimal netBackExposure = BigDecimal.ZERO;
 
+		// The function iterates over all the bets in the provided list.
+		// It only considers bets with the status "Confirmed".
 		for (Bets bet : bets) {
 			if ("Confirmed".equalsIgnoreCase(bet.getStatus())) {
-				BigDecimal stake = bet.getAmount(); // Declare stake at the beginning
+				BigDecimal stake = bet.getAmount(); // For each bet, it extracts the stake and odds.
 				BigDecimal odds = bet.getOdd();
 				BigDecimal liability = stake.multiply(odds.subtract(BigDecimal.ONE)); // Calculate liability after stake
 																						// is declared

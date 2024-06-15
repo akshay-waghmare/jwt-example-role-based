@@ -70,7 +70,8 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 	    newUser.setPassword(bcryptEncoder.encode(user.getPassword()));
 		newUser.setAge(user.getAge());
 		newUser.setSalary(user.getSalary());
-        return userDao.save(newUser);
+		newUser.setBalance(user.getBalance());
+		return userDao.save(newUser);
     }
 
 	@Override

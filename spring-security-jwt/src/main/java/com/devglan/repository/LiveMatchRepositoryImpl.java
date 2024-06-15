@@ -19,6 +19,7 @@ public class LiveMatchRepositoryImpl implements LiveMatchRepositoryCustom {
 
 	@Override
 	public void saveLiveMatches(List<String> urls) {
+		//explain
 		for (String url : urls) {
 			LiveMatch liveMatch = new LiveMatch(url);
 			entityManager.persist(liveMatch);

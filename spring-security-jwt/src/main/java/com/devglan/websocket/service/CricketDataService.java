@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
@@ -49,9 +48,7 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 
 	private AtomicBoolean brokerAvailable = new AtomicBoolean();
 
-	private final Map<String, CricketDataDTO> lastUpdatedDataMap = new ConcurrentHashMap<>();
-	
-    private final CricketDataRepository cricketDataRepository;
+	private final CricketDataRepository cricketDataRepository;
     
     @Autowired
     private OversDataRepository oversDataRepository;

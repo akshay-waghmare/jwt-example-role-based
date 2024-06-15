@@ -79,6 +79,14 @@ public class LiveMatchServiceImpl implements LiveMatchService {
         return liveMatchRepository.findByIsDeletedFalse();
     }
 	
+	public List<LiveMatch> findAllMatches() {
+        return liveMatchRepository.findAll();
+    }
+	
+	public List<LiveMatch> findAllFinishedMatches() {
+        return liveMatchRepository.findByIsDeletedTrue();
+    }
+	
 	public ResponseEntity<CricketDataDTO> fetchAndSendData(String url) {
 		CricketDataDTO lastUpdatedData = cricketDataService.getLastUpdatedData(url);
 		if (lastUpdatedData != null) {
@@ -92,5 +100,6 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 		// Implement logic to append base URL if needed
 		return "https://crex.live" + url;
 	}
+
 
 }

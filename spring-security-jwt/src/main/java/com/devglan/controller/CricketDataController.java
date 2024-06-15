@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
 
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.devglan.dao.BetResponse;
 import com.devglan.dao.CricketDataDTO;
 import com.devglan.model.Bets;
 import com.devglan.model.LiveMatch;
@@ -37,6 +39,7 @@ import com.devglan.websocket.service.CricketDataService;
 @RequestMapping("/cricket-data")
 public class CricketDataController {
 
+	@SuppressWarnings("unused")
 	private static final Logger log = LoggerFactory.getLogger(CricketDataController.class);
 
 	@Autowired
@@ -202,13 +205,24 @@ public class CricketDataController {
 	}
 
 	@GetMapping("/bets")
-	public ResponseEntity<List<Bets>> getBetsForMatch(@RequestParam String url) {
+	public ResponseEntity<BetResponse> getBetsForMatch(@RequestParam String url) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		String currentUsername = authentication.getName();
 		User user = userService.findOne(currentUsername);
 
 		List<Bets> bets = betService.getBetsForMatch(url, user.getId());
-		return ResponseEntity.ok(bets);
+		Map<String, List<Bets>> betsByTeam = bets.stream()
+                .filter(bet -> !"Cancelled".equals(bet.getStatus()))
+                .collect(Collectors.groupingBy(Bets::getTeamName));
+		
+	    Map<String, Map<String, BigDecimal>> matchExposures = betService.calculateMatchExposures(betsByTeam);
+	    Map<String, BigDecimal> adjustedExposuresForAllTeams = betService.adjustExposuresForAllTeams(
+	    		matchExposures);
+
+	    BetResponse response = new BetResponse(bets, adjustedExposuresForAllTeams);
+	    log.info("sending all bets response {}", response.getBets());
+
+		return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/placeBet")
@@ -234,7 +248,7 @@ public class CricketDataController {
 				// If it's a back bet and the user has enough balance, proceed
 				isBetValid = true;
 				// Deduct the bet amount from the user's balance
-				//user.setBalance(userBalance.subtract(betAmount));
+				// user.setBalance(userBalance.subtract(betAmount));
 			} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
 				// For lay bets, you might have different logic, depending on your betting rules
 				// Here, we assume the user can place the bet without balance restrictions
@@ -245,10 +259,10 @@ public class CricketDataController {
 					// Here, you might want to reserve the potential payout amount from the user's
 					// balance
 					// depending on your application's requirements.
-					//user.setBalance(userBalance.subtract(potentialPayout));
+					// user.setBalance(userBalance.subtract(potentialPayout));
 				} else {
 					isBetValid = false;
-					//cancel the bet if not valid 
+					// cancel the bet if not valid
 				}
 				// No balance deduction for lay bets in this example
 			}
@@ -260,19 +274,19 @@ public class CricketDataController {
 				bet.setPlacedAt(new Date());
 				// Set bet status as pending for now
 				bet.setStatus("Pending");
+				Bets savedBet = betService.placeBet(bet);
 				// confirm/cancel bet with respect to the latest stable odds
 				betService.checkAndConfirmBet(bet, currentUsername);
 
 				// Save the updated user balance
 				userService.updateUser(user);
 				// Save the bet using the BetService and store the returned instance
-				Bets savedBet = betService.placeBet(bet);
 				// Respond with the saved bet details
 				return ResponseEntity.ok(savedBet);
 			} else {
-				
+
 				cricketDataService.notifyBetStatus(betService.cancelBet(bet));
-				// Respond indicating the user does not have enough balance				
+				// Respond indicating the user does not have enough balance
 				return ResponseEntity.badRequest().body("Insufficient balance for this bet.");
 			}
 		} else {

@@ -29,6 +29,7 @@ public class Quote {
 		this.price = price;
 	}
 
+	@SuppressWarnings("unused")
 	private Quote() {
 	}
 

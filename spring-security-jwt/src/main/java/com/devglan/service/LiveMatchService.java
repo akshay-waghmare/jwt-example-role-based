@@ -13,5 +13,7 @@ public interface LiveMatchService {
     List<LiveMatch> findAll();
     public ResponseEntity<CricketDataDTO> fetchAndSendData(String url);
     public String appendBaseUrl(String url);
+
+	public List<LiveMatch> findAllFinishedMatches();
     
 }

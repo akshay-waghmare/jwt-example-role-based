@@ -1,0 +1,18 @@
+version: '3.7'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8099:8099"
+    volumes:
+      - ./testdb.mv.db:/app/testdb.mv.db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/app/testdb;DB_CLOSE_ON_EXIT=FALSE
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD:
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
+
+volumes:
+  db_data:

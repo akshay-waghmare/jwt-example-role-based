@@ -1,13 +1,8 @@
 package com.devglan.config;
 
-import com.devglan.model.User;
-import io.jsonwebtoken.*;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
+import static com.devglan.model.Constants.ACCESS_TOKEN_VALIDITY_SECONDS;
+import static com.devglan.model.Constants.AUTHORITIES_KEY;
+import static com.devglan.model.Constants.SIGNING_KEY;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -16,14 +11,28 @@ import java.util.Date;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.devglan.model.Constants.ACCESS_TOKEN_VALIDITY_SECONDS;
-import static com.devglan.model.Constants.AUTHORITIES_KEY;
-import static com.devglan.model.Constants.SIGNING_KEY;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 
 @Component
 public class TokenProvider implements Serializable {
 
-    public String getUsernameFromToken(String token) {
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -6393434951066704259L;
+
+	public String getUsernameFromToken(String token) {
         return getClaimFromToken(token, Claims::getSubject);
     }
 
