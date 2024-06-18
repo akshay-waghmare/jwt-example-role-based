@@ -93,13 +93,12 @@ public class BetService {
 				BigDecimal overAllMaxExposure = BigDecimal.ZERO;
 
 				for (String team : adjustedExposuresForAllTeams.keySet()) { // Line 67
-					BigDecimal exposure = adjustedExposuresForAllTeams.getOrDefault(team,
-							BigDecimal.ZERO);
-										
-					if (exposure.compareTo(BigDecimal.ZERO) < 0 ) {
+					BigDecimal exposure = adjustedExposuresForAllTeams.getOrDefault(team, BigDecimal.ZERO);
+
+					if (exposure.compareTo(BigDecimal.ZERO) < 0) {
 						overAllMaxExposure = exposure.min(overAllMaxExposure);
 					}
-					
+
 				}
 
 				user.setExposure(user.getExposure().subtract(overAllMaxExposure.abs()));
@@ -108,7 +107,7 @@ public class BetService {
 			if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 76
 				user.setExposure(BigDecimal.ZERO);
 			}
-			
+
 			userService.updateUser(user); // Line 78
 		}
 
@@ -154,8 +153,8 @@ public class BetService {
 	@Transactional
 	public void checkAndConfirmBet(Bets bet, String currentUsername) {
 		try {
-			// 2-second delay
-			Thread.sleep(2000);
+			// 5-second delay
+			Thread.sleep(5000);
 
 			// Fetch latest odds for the event
 			CricketDataDTO latestOdds = null;
@@ -448,29 +447,27 @@ public class BetService {
 
 	}
 
-
-	
 	private void adjustUserExposureBasedOnBet(User user, Bets bet, Map<String, BigDecimal> adjustedExposures,
 			Map<String, BigDecimal> postBetadjustedExposures) {
-//		BigDecimal prvWinExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Win");
-//		BigDecimal prvLoseExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
-//		BigDecimal maxPrvExposure = BigDecimal.ZERO;
+		BigDecimal prvWinExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Win");
+		BigDecimal prvLoseExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
+		BigDecimal maxPrvExposure = BigDecimal.ZERO;
 //
 //		// Negative values of exposure indicate a potential loss. By focusing on the
 //		// most negative value (i.e., the maximum potential loss), the system ensures
 //		// that the user's risk is properly managed.
 //		// Goal: Find the maximum potential loss (maxPrvExposure) before placing the new
 //		// bet.
-//		if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
-//			// Both are negative, compare to find the more negative value
-//			maxPrvExposure = prvWinExposure.min(prvLoseExposure);
-//		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0) {
-//			// Only prvWinExposure is negative
-//			maxPrvExposure = prvWinExposure;
-//		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
-//			// Only prvLoseExposure is negative
-//			maxPrvExposure = prvLoseExposure;
-//		}
+		if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Both are negative, compare to find the more negative value
+			maxPrvExposure = prvWinExposure.min(prvLoseExposure);
+		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Only prvWinExposure is negative
+			maxPrvExposure = prvWinExposure;
+		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Only prvLoseExposure is negative
+			maxPrvExposure = prvLoseExposure;
+		}
 
 		// here
 		BigDecimal updtWinExposure = postBetadjustedExposures.get(bet.getTeamName() + " Adjusted Win");
@@ -494,6 +491,13 @@ public class BetService {
 		} else if (updtLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
 			// Only prvLoseExposure is negative
 			updtMaxExposure = updtLoseExposure;
+		} else {
+			// Both are positive or zero, indicating no potential loss
+			updtMaxExposure = BigDecimal.ZERO;
+						
+			user.setExposure(user.getExposure().subtract(maxPrvExposure.abs()));
+	        userService.updateUser(user);
+			
 		}
 
 		// By calculating the difference between the new and old maximum potential
