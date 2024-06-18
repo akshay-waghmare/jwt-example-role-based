@@ -39,7 +39,6 @@ public class UserController {
         return userService.findById(id);
     }
     
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping("users/search")
     public User getOneByName(@RequestParam(value = "name") String name){
         return userService.findOne(name);
