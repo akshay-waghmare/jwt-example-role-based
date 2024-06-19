@@ -326,8 +326,9 @@ public class BetService {
 		// Check if user balance covers the maximum overall exposure
 		if (user.getBalance().compareTo(totalPotentialExposure) >= 0) {
 			user.setExposure(totalPotentialExposure);
-			userService.updateUser(user);
+			User updateUser = userService.updateUser(user);
 			updatedBet = betRepository.save(bet);
+			updatedBet.setUser(updateUser);
 		} else {
 			// Handle insufficient balance case
 			// I will simply cancell the bet and update the bets table
@@ -366,10 +367,11 @@ public class BetService {
 			// Update the user's exposure and confirm the bet if the user's balance covers
 			// it
 			user.setExposure(updatedPotentialDifference); // Example update, adjust as necessary
-			userService.updateUser(user);
+			User updateUser = userService.updateUser(user);
 			bet.setStatus("Confirmed");
-			betRepository.save(bet);
-			cricketDataService.notifyBetStatus(bet);
+			Bets savedBet = betRepository.save(bet);
+			savedBet.setUser(updateUser);
+			cricketDataService.notifyBetStatus(savedBet);
 		} else {
 			// Cancel the bet if the user's balance does not cover the potential exposure
 			cancelBet(bet);
@@ -494,23 +496,32 @@ public class BetService {
 		} else {
 			// Both are positive or zero, indicating no potential loss
 			updtMaxExposure = BigDecimal.ZERO;
-						
-			user.setExposure(user.getExposure().subtract(maxPrvExposure.abs()));
-	        userService.updateUser(user);
+			BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
+			BigDecimal latestExposure = user.getExposure().subtract(updatedExposureDiff.abs());
+			user.setExposure(latestExposure);
+			User updateUser = userService.updateUser(user);
+			bet.setStatus("Confirmed");
+			Bets savedBet = betRepository.save(bet);
+			savedBet.setUser(updateUser);
+			cricketDataService.notifyBetStatus(savedBet);
+			
+			return;
+			
 			
 		}
 
+		
 		// By calculating the difference between the new and old maximum potential
 		// losses, the system can determine how the user's risk profile has changed due
 		// to the new bet
 		// Goal: Calculate the difference in the worst-case scenario of potential loss
 		// due to the new bet.
-//		BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
+		BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
 
 		// Goal: Update the user's total potential exposure and decide whether to
 		// confirm or cancel the bet based on this updated exposure.
 //		BigDecimal totalPotentialExposure = calculateTotalPotentialExposure(user, updtMaxExposure);
-		confirmOrCancelBetAndUpdateUser(user, bet, updtMaxExposure);
+		confirmOrCancelBetAndUpdateUser(user, bet, updatedExposureDiff);
 	}
 
 	public Map<String, BigDecimal> adjustExposuresForAllTeams(Map<String, Map<String, BigDecimal>> initialExposures) {
@@ -542,12 +553,15 @@ public class BetService {
 	}
 
 	private void confirmOrCancelBetAndUpdateUser(User user, Bets bet, BigDecimal totalPotentialExposure) {
-		if (user.getBalance().compareTo(totalPotentialExposure) >= 0) {
-			user.setExposure(user.getExposure().add(totalPotentialExposure.abs()));
-			userService.updateUser(user);
+		// not adding the absolte value of totalPotentialExposure as it can also be negative which means the exposure decreased
+		BigDecimal latestExposure = user.getExposure().add(totalPotentialExposure);
+		if (user.getBalance().compareTo(latestExposure) >= 0) {
+			user.setExposure(latestExposure);
+			User updateUser = userService.updateUser(user);
 			bet.setStatus("Confirmed");
-			betRepository.save(bet);
-			cricketDataService.notifyBetStatus(bet);
+			Bets savedBet = betRepository.save(bet);
+			savedBet.setUser(updateUser);
+			cricketDataService.notifyBetStatus(savedBet);
 		} else {
 			cancelBet(bet);
 		}

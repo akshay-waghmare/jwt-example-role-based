@@ -2,6 +2,8 @@ package com.devglan.controller;
 
 import java.util.List;
 
+import javax.annotation.security.PermitAll;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -39,6 +41,7 @@ public class UserController {
         return userService.findById(id);
     }
     
+    @PermitAll
     @GetMapping("users/search")
     public User getOneByName(@RequestParam(value = "name") String name){
         return userService.findOne(name);

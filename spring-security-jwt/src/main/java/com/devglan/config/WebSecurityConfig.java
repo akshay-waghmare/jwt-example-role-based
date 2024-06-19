@@ -60,7 +60,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 				.and().csrf().disable().
 
 				authorizeRequests()
-				.antMatchers("/users/search", "/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**",
+				.antMatchers("/users/search/**", "/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**",
 						"/signup", "/football", "/football/**", "/events", "/events/**", "/market/**", "/tennis",
 						"/tennis/**", "/cricket-data", "/cricket-data/**", "/bet-history", "/bet-history/**")
 				.permitAll().anyRequest().authenticated().and().exceptionHandling()
