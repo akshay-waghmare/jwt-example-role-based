@@ -60,7 +60,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 				.and().csrf().disable().
 
 				authorizeRequests()
-				.antMatchers("/users/search/**", "/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**",
+				.antMatchers("/users/search","/users/search/**", "/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**",
 						"/signup", "/football", "/football/**", "/events", "/events/**", "/market/**", "/tennis",
 						"/tennis/**", "/cricket-data", "/cricket-data/**", "/bet-history", "/bet-history/**")
 				.permitAll().anyRequest().authenticated().and().exceptionHandling()
@@ -72,7 +72,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	// comment this if you are not using h2-console
 	@Override
 	public void configure(WebSecurity web) throws Exception {
-		web.ignoring().antMatchers("/h2-console/**", "/ws/*", "/ws/**", "/token", "/token/*");
+		web.ignoring().antMatchers("/users/search", "/users/search/**","/h2-console/**", "/ws/*", "/ws/**", "/token", "/token/*");
 	}
 
 	@Bean

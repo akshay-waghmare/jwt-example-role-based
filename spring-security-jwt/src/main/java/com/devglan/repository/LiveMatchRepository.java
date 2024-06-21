@@ -8,6 +8,7 @@ import com.devglan.model.LiveMatch;
 
 public interface LiveMatchRepository extends JpaRepository<LiveMatch, Long> , LiveMatchRepositoryCustom {
 
+	boolean existsByUrl(String url);
 	List<LiveMatch> findByIsDeletedFalse();
 	boolean existsByUrlAndIsDeletedFalse(String url);
 	List<LiveMatch> findByIsDeletedTrue();

@@ -52,7 +52,7 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 			}
 			
 			for (String url : urls) {
-				if (!liveMatchRepository.existsByUrlAndIsDeletedFalse(url)) {
+				if (!liveMatchRepository.existsByUrl(url)) {
 					LiveMatch liveMatch = new LiveMatch(url);
 					liveMatchRepository.save(liveMatch);
 					// Notify about the new match over WebSocket

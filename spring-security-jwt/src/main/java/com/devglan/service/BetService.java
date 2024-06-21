@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.scheduling.annotation.Async;
@@ -28,6 +30,9 @@ import com.devglan.websocket.service.CricketDataService;
 
 @Service
 public class BetService {
+	
+    private static final Logger logger = LoggerFactory.getLogger(BetService.class);
+
 
 	@Autowired
 	private BetRepository betRepository;
@@ -53,29 +58,50 @@ public class BetService {
 	@Async("taskScheduler")
 	@Scheduled(fixedRate = 60000) // Runs every 5 minutes
 	public void checkMatchResults() {
-		List<LiveMatch> liveMatches = liveMatchService.findAllFinishedMatches();
-		for (LiveMatch match : liveMatches) {
-			if (match.isFinished()) {
-				distributeExposureAndWinnings(match);
+
+		logger.info("Scheduled task checkMatchResults started");
+
+		try {
+			List<LiveMatch> liveMatches = liveMatchService.findAllFinishedMatches();
+			logger.debug("Found {} finished matches", liveMatches.size());
+
+			for (LiveMatch match : liveMatches) {
+				if (match.isFinished()) {
+					logger.debug("Processing finished match: {}", match.getId());
+					try {
+						distributeExposureAndWinnings(match);
+					} catch (Exception e) {
+						logger.error("Error distributing exposure and winnings for match: {}", match.getId(), e);
+					}
+				} else {
+					logger.debug("Match {} is not finished", match.getId());
+				}
 			}
+		} catch (Exception e) {
+			logger.error("Error in scheduled task checkMatchResults", e);
 		}
+
+		logger.info("Scheduled task checkMatchResults finished");
 	}
 
 	@Transactional
 	public void distributeExposureAndWinnings(LiveMatch match) {
+        logger.info("Distributing exposure and winnings for match: {}", match.getId());
 		String winningTeam = match.getWinningTeam();
 		if (winningTeam == null) {
+            logger.warn("No winning team found for match: {}, skipping processing", match.getId());
 			return; // No winning team found, skip processing
 		}
 
 		List<Bets> betsForMatch = betRepository.findByMatchUrlContainingAndConfirmed(match.getUrl());
-
+        logger.debug("Winning team for match {}: {}", match.getId(), winningTeam);
 		// Group bets by user for exposure reversal
 		Map<User, List<Bets>> userBetsMap = betsForMatch.stream().collect(Collectors.groupingBy(Bets::getUser));
 
 		for (Entry<User, List<Bets>> entry : userBetsMap.entrySet()) { // Line 49
 			User user = entry.getKey();
 			List<Bets> userBets = entry.getValue();
+            logger.debug("Processing bets for user: {}", user.getId());
 
 			// Group bets by team to handle multi-team logic if necessary
 			Map<String, List<Bets>> betsByTeam = userBets.stream().collect(Collectors.groupingBy(Bets::getTeamName));
@@ -84,17 +110,18 @@ public class BetService {
 				// Bets are only on one team
 				List<Bets> singleTeamBets = betsByTeam.values().iterator().next();
 				BigDecimal exposure = calculateNetExposuresInWinLoseCase(singleTeamBets);
+                logger.debug("User: {}, single team bets exposure: {}", user.getId(), exposure);
 				user.setExposure(user.getExposure().subtract(exposure.abs()));
 			} else if (betsByTeam.size() > 1) {
 				// Bets are on multiple teams
 				Map<String, BigDecimal> adjustedExposuresForAllTeams = adjustExposuresForAllTeams(
 						calculateMatchExposures(betsByTeam));
-
+                logger.debug("User: {}, adjusted exposures for all teams: {}", user.getId(), adjustedExposuresForAllTeams);
 				BigDecimal overAllMaxExposure = BigDecimal.ZERO;
 
 				for (String team : adjustedExposuresForAllTeams.keySet()) { // Line 67
 					BigDecimal exposure = adjustedExposuresForAllTeams.getOrDefault(team, BigDecimal.ZERO);
-
+                    logger.debug("User: {}, team: {}, exposure: {}", user.getId(), team, exposure);
 					if (exposure.compareTo(BigDecimal.ZERO) < 0) {
 						overAllMaxExposure = exposure.min(overAllMaxExposure);
 					}
@@ -102,6 +129,7 @@ public class BetService {
 				}
 
 				user.setExposure(user.getExposure().subtract(overAllMaxExposure.abs()));
+                logger.debug("User: {}, overall max exposure: {}", user.getId(), overAllMaxExposure);
 			}
 
 			if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 76
@@ -109,43 +137,53 @@ public class BetService {
 			}
 
 			userService.updateUser(user); // Line 78
+            logger.debug("User: {}, updated exposure: {}", user.getId(), user.getExposure());
+
 		}
 
-		for (Bets bet : betsForMatch) { // Line 17
-			User user = bet.getUser();
+		for (Bets bet : betsForMatch) {
+            User user = bet.getUser();
+            logger.debug("Processing bet: {} for user: {}", bet.getBetId(), user.getId());
 
-			BigDecimal stake = bet.getAmount();
-			BigDecimal odds = bet.getOdd();
-			BigDecimal liability = stake.multiply(odds.subtract(BigDecimal.ONE));
-			BigDecimal winnings = stake.multiply(odds).subtract(stake);
+            BigDecimal stake = bet.getAmount();
+            BigDecimal odds = bet.getOdd();
+            BigDecimal liability = stake.multiply(odds.subtract(BigDecimal.ONE));
+            BigDecimal winnings = stake.multiply(odds).subtract(stake);
 
-			// Ensure exposure does not go negative
-			if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 25
-				user.setExposure(BigDecimal.ZERO);
-			}
+            // Ensure exposure does not go negative
+            if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) {
+                user.setExposure(BigDecimal.ZERO);
+                logger.debug("User: {}, exposure set to zero before processing bet: {}", user.getId(), bet.getBetId());
+            }
 
-			if (bet.getTeamName().equalsIgnoreCase(winningTeam)) {
-				// User won the bet
-				if ("back".equalsIgnoreCase(bet.getBetType())) {
-					user.setBalance(user.getBalance().add(winnings)); // Add winnings and return stake
-					bet.setStatus("Won");
-				} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
-					user.setBalance(user.getBalance().subtract(liability)); // Subtract liability
-					bet.setStatus("Lost");
-				}
-			} else {
-				// User lost the bet
-				if ("back".equalsIgnoreCase(bet.getBetType())) {
-					user.setBalance(user.getBalance().subtract(stake)); // Subtract stake
-					bet.setStatus("Lost");
-				} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
-					user.setBalance(user.getBalance().add(stake)); // Return stake
-					bet.setStatus("Won");
-				}
-			}
-			betRepository.save(bet);
-			userService.updateUser(user); // Line 43
-		}
+            if (bet.getTeamName().equalsIgnoreCase(winningTeam)) {
+                // User won the bet
+                if ("back".equalsIgnoreCase(bet.getBetType())) {
+                    user.setBalance(user.getBalance().add(winnings)); // Add winnings and return stake
+                    bet.setStatus("Won");
+                    logger.debug("User: {}, bet: {} won, new balance: {}", user.getId(), bet.getBetId(), user.getBalance());
+                } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+                    user.setBalance(user.getBalance().subtract(liability)); // Subtract liability
+                    bet.setStatus("Lost");
+                    logger.debug("User: {}, bet: {} lost, new balance: {}", user.getId(), bet.getBetId(), user.getBalance());
+                }
+            } else {
+                // User lost the bet
+                if ("back".equalsIgnoreCase(bet.getBetType())) {
+                    user.setBalance(user.getBalance().subtract(stake)); // Subtract stake
+                    bet.setStatus("Lost");
+                    logger.debug("User: {}, bet: {} lost, new balance: {}", user.getId(), bet.getBetId(), user.getBalance());
+                } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+                    user.setBalance(user.getBalance().add(stake)); // Return stake
+                    bet.setStatus("Won");
+                    logger.debug("User: {}, bet: {} won, new balance: {}", user.getId(), bet.getBetId(), user.getBalance());
+                }
+            }
+
+            betRepository.save(bet);
+            userService.updateUser(user);
+            logger.debug("Bet: {}, updated status: {}, user: {}, updated balance: {}", bet.getBetId(), bet.getStatus(), user.getId(), user.getBalance());
+        }
 
 	}
 
@@ -504,13 +542,11 @@ public class BetService {
 			Bets savedBet = betRepository.save(bet);
 			savedBet.setUser(updateUser);
 			cricketDataService.notifyBetStatus(savedBet);
-			
+
 			return;
-			
-			
+
 		}
 
-		
 		// By calculating the difference between the new and old maximum potential
 		// losses, the system can determine how the user's risk profile has changed due
 		// to the new bet

@@ -41,8 +41,8 @@ public class UserController {
         return userService.findById(id);
     }
     
-    @PermitAll
-    @GetMapping("users/search")
+    
+    @GetMapping("/users/search")
     public User getOneByName(@RequestParam(value = "name") String name){
         return userService.findOne(name);
     }

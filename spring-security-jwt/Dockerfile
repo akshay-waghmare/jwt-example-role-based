@@ -11,4 +11,5 @@ COPY target/spring-security-jwt-1.0-SNAPSHOT.war /app/app.war
 EXPOSE 8099
 
 # Run the application
-ENTRYPOINT ["java", "-jar", "/app/app.war"]
+ENTRYPOINT ["java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005", "-jar", "/app/app.war"]
+
