@@ -15,5 +15,6 @@ public interface LiveMatchService {
     public String appendBaseUrl(String url);
 
 	public List<LiveMatch> findAllFinishedMatches();
+	public LiveMatch findByUrl(String url);
     
 }

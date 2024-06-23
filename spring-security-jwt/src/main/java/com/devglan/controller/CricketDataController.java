@@ -28,6 +28,7 @@ import com.devglan.dao.BetResponse;
 import com.devglan.dao.CricketDataDTO;
 import com.devglan.model.Bets;
 import com.devglan.model.LiveMatch;
+import com.devglan.model.ProfitLoss;
 import com.devglan.model.User;
 import com.devglan.service.BetService;
 import com.devglan.service.LiveMatchService;
@@ -156,6 +157,30 @@ public class CricketDataController {
 		}
 	}
 
+	 @GetMapping("/bet/profit-loss")
+	    public ResponseEntity<List<ProfitLoss>> getProfitLoss() {
+	        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+	        String currentUsername = authentication.getName();
+			User user = userService.findOne(currentUsername);
+	        List<ProfitLoss> profitLoss = betService.calculateProfitLoss(user.getId());
+
+	        return ResponseEntity.ok(profitLoss);
+	    }
+	 
+	@GetMapping("/bet/history")
+    public ResponseEntity<BetResponse> getBetHistory() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		String currentUsername = authentication.getName();
+		User user = userService.findOne(currentUsername);
+		List<Bets> betsByUserId = betService.getBetsByUserId(user.getId());
+		List<Bets> filteredBets = betsByUserId.stream()
+                .filter(bet -> !("WON".equalsIgnoreCase(bet.getStatus()) || "LOST".equalsIgnoreCase(bet.getStatus())))
+                .collect(Collectors.toList());
+		 BetResponse response = new BetResponse(filteredBets, null);
+		
+        return ResponseEntity.ok(response);
+    }
+	
 	@GetMapping("/last-updated-data")
 	public ResponseEntity<CricketDataDTO> getLastUpdatedData(@RequestParam String url) {
 		// Retrieve the last updated data for the specific URL

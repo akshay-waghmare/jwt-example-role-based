@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 
@@ -56,7 +55,7 @@ public class QuoteService implements ApplicationListener<BrokerAvailabilityEvent
 		this.brokerAvailable.set(event.isBrokerAvailable());
 	}
 
-	@Scheduled(fixedDelay=10000)
+//	@Scheduled(fixedDelay=10000)
 	public void sendQuotes() {
 		for (Quote quote : this.quoteGenerator.generateQuotes()) {
 			if (logger.isTraceEnabled()) {
@@ -64,7 +63,7 @@ public class QuoteService implements ApplicationListener<BrokerAvailabilityEvent
 			}
 			if (this.brokerAvailable.get()) {
 				//sending payload quote to destination "/topic/price.stock"
-				this.messagingTemplate.convertAndSend("/topic/price.stock." + quote.getTicker(), quote);
+//				this.messagingTemplate.convertAndSend("/topic/price.stock." + quote.getTicker(), quote);
 			}
 		}
 	}

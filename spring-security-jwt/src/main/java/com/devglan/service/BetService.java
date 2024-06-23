@@ -25,6 +25,7 @@ import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.MatchOdds;
 import com.devglan.model.Bets;
 import com.devglan.model.LiveMatch;
+import com.devglan.model.ProfitLoss;
 import com.devglan.model.User;
 import com.devglan.websocket.service.CricketDataService;
 
@@ -733,4 +734,47 @@ public class BetService {
 		}
 	}
 
+	private BigDecimal calculatePotentialWin(Bets bet) {
+        return bet.getAmount().multiply(bet.getOdd().subtract(BigDecimal.ONE));
+    }
+	
+	public List<ProfitLoss> calculateProfitLoss(Long userId) {
+	    List<Bets> bets = getBetsByUserId(userId);
+	    Map<String, List<Bets>> betsByMatch = bets.stream()
+	            .collect(Collectors.groupingBy(Bets::getMatchUrl));
+
+	    return betsByMatch.entrySet().stream().map(entry -> {
+	        String matchUrl = entry.getKey();
+	        List<Bets> matchBets = entry.getValue();
+	        String winningTeam = getWinningTeamForMatch(matchUrl); // Method to get the winning team for the match
+	        BigDecimal netProfitOrLoss = BigDecimal.ZERO;
+
+	        for (Bets bet : matchBets) {
+	            BigDecimal potentialWin = calculatePotentialWin(bet);
+	            if (bet.getTeamName().equalsIgnoreCase(winningTeam)) {
+	                if ("back".equalsIgnoreCase(bet.getBetType())) {
+	                    netProfitOrLoss = netProfitOrLoss.add(potentialWin);
+	                } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+	                    BigDecimal liability = bet.getAmount().multiply(bet.getOdd().subtract(BigDecimal.ONE));
+	                    netProfitOrLoss = netProfitOrLoss.subtract(liability);
+	                }
+	            } else {
+	                if ("back".equalsIgnoreCase(bet.getBetType())) {
+	                    netProfitOrLoss = netProfitOrLoss.subtract(bet.getAmount());
+	                } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+	                    netProfitOrLoss = netProfitOrLoss.add(bet.getAmount());
+	                }
+	            }
+	        }
+
+	        return new ProfitLoss(matchUrl, netProfitOrLoss);
+	    }).collect(Collectors.toList());
+	}
+
+	private String getWinningTeamForMatch(String matchUrl) {
+	    // Logic to retrieve the winning team for the match based on the match URL
+	    // This could involve querying your match repository or another data source
+	    LiveMatch match = liveMatchService.findByUrl(matchUrl);
+	    return match != null ? match.getWinningTeam() : null;
+	}
 }
