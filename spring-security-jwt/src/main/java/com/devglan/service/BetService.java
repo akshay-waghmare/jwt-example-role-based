@@ -1,6 +1,7 @@
 package com.devglan.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -280,8 +281,10 @@ public class BetService {
 
 	private CricketDataDTO fetchLatestOdds(Bets bet, CricketDataDTO latestOdds) {
 		String completeUrl = liveMatchService.findAll().stream()
-				.filter(liveMatch -> liveMatch.getUrl().contains(bet.getMatchUrl())).findFirst()
-				.map(liveMatch -> liveMatchService.appendBaseUrl(liveMatch.getUrl())).orElse(null);
+	            .filter(liveMatch -> liveMatch.getUrl().contains(bet.getMatchUrl()))
+	            .findFirst()
+	            .map(liveMatch -> liveMatchService.appendBaseUrl(liveMatch.getUrl()))
+	            .orElse(null);
 		if (completeUrl != null) {
 			latestOdds = cricketDataService.getLastUpdatedData(completeUrl); // Adjust based on
 		}
@@ -293,13 +296,40 @@ public class BetService {
 		boolean confirmBet = false;
 		BigDecimal hundred = BigDecimal.valueOf(100);
 		BigDecimal one = BigDecimal.ONE;
-		if ("back".equals(bet.getBetType()) && bet.getOdd().subtract(one).multiply(hundred)
-				.compareTo(BigDecimal.valueOf(Double.parseDouble(latestOdds.getTeamOdds().getBackOdds()))) <= 0) {
-			confirmBet = true;
-		} else if (bet.getOdd().subtract(one).multiply(hundred)
-				.compareTo(BigDecimal.valueOf(Double.parseDouble(latestOdds.getTeamOdds().getLayOdds()))) >= 0) {
+		CricketDataDTO fetchedLatestOdds = fetchLatestOdds(bet, latestOdds);
+		if (fetchedLatestOdds == null) {
+	        cricketDataService.notifyBetStatus(cancelBet(bet));
+	        return;
+	    }
+		
+		String betTeamName = bet.getTeamName();
+	    String favTeam = fetchedLatestOdds.getFavTeam(); // Use real-time odds for fav team
+
+	    // Scenario 1: Bet is back on team 1 and favorite team is team 2 -> accept bet
+	    // Scenario 2: Bet is back on team 2 and favorite team is team 1 -> accept bet
+		if ("back".equals(bet.getBetType()) && !betTeamName.equalsIgnoreCase(favTeam)) {
 			confirmBet = true;
 		}
+		// Scenario 3: Bet is lay on team 1 and favorite team is team 2 -> reject bet
+		// Scenario 4: Bet is lay on team 2 and favorite team is team 1 -> reject bet
+		else if ("lay".equals(bet.getBetType()) && !betTeamName.equalsIgnoreCase(favTeam)) {
+			confirmBet = false;
+		}
+
+		 // Check for bet on favorite team
+	    else if ("back".equals(bet.getBetType()) && betTeamName.equalsIgnoreCase(favTeam)) {
+	        BigDecimal betOddAdjusted = bet.getOdd().subtract(one).multiply(hundred).setScale(1, RoundingMode.HALF_UP);
+	        BigDecimal fetchedBackOdd = new BigDecimal(fetchedLatestOdds.getTeamOdds().getBackOdds()).setScale(1, RoundingMode.HALF_UP);
+	        if (betOddAdjusted.compareTo(fetchedBackOdd) <= 0) {
+	            confirmBet = true;
+	        }
+	    } else if ("lay".equals(bet.getBetType()) && betTeamName.equalsIgnoreCase(favTeam)) {
+	        BigDecimal betOddAdjusted = bet.getOdd().subtract(one).multiply(hundred).setScale(1, RoundingMode.HALF_UP);
+	        BigDecimal fetchedLayOdd = new BigDecimal(fetchedLatestOdds.getTeamOdds().getLayOdds()).setScale(1, RoundingMode.HALF_UP);
+	        if (betOddAdjusted.compareTo(fetchedLayOdd) >= 0) {
+	            confirmBet = true;
+	        }
+	    }
 
 		if (confirmBet) {
 

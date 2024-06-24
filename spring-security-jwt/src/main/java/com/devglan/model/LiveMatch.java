@@ -4,8 +4,14 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Index;
+import javax.persistence.Table;
 
 @Entity
+@Table(name = "LIVE_MATCH", indexes = {
+	    @Index(name = "idx_url", columnList = "url"),
+	    @Index(name = "idx_is_deleted", columnList = "isDeleted")
+	})
 public class LiveMatch {
 
 	@Id

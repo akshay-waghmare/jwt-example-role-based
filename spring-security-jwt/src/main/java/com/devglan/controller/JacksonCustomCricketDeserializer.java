@@ -11,6 +11,7 @@ import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.MatchOdds;
 import com.devglan.dao.OversData;
 import com.devglan.dao.SessionOdds;
+import com.devglan.dao.SessionOverData;
 import com.devglan.dao.TeamOdds;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -106,6 +107,33 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
             }
             cricketData.setMatchOdds(matchOddsList);
         }
+
+     // Extract team-wise session data
+        Map<String, List<SessionOverData>> teamWiseSessionData = new HashMap<>();
+        Iterator<Map.Entry<String, JsonNode>> teamNodes = node.fields();
+        while (teamNodes.hasNext()) {
+            Map.Entry<String, JsonNode> teamEntry = teamNodes.next();
+            String teamName = teamEntry.getKey();
+            JsonNode teamNode = teamEntry.getValue();
+
+            if (teamNode.has("innings") && teamNode.has("Session")) {
+                String innings = teamNode.get("innings").asText();
+                List<SessionOverData> sessionList = new ArrayList<>();
+
+                JsonNode sessions = teamNode.get("Session");
+                if (sessions.isArray()) {
+                    for (JsonNode sessionNode : sessions) {
+                        SessionOverData sessionData = new SessionOverData();
+                        sessionData.setName(sessionNode.get("name").asText());
+                        sessionData.setOpen(sessionNode.get("open").asText());
+                        sessionData.setPass(sessionNode.get("pass").asText());
+                        sessionList.add(sessionData);
+                    }
+                }
+                teamWiseSessionData.put(teamName + " - " + innings, sessionList);
+            }
+        }
+        cricketData.setTeamWiseSessionData(teamWiseSessionData);
 
         
         // Extract fields from the new JSON structure

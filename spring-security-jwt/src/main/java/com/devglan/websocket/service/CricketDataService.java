@@ -32,10 +32,14 @@ import org.springframework.stereotype.Service;
 
 import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.OversData;
+import com.devglan.dao.SessionOverData;
 import com.devglan.model.Bets;
 import com.devglan.model.CricketDataEntity;
+import com.devglan.model.TeamSessionData;
 import com.devglan.repository.CricketDataRepository;
 import com.devglan.repository.OversDataRepository;
+import com.devglan.repository.SessionOverDataRepository;
+import com.devglan.repository.TeamSessionDataRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -53,7 +57,11 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
     @Autowired
     private OversDataRepository oversDataRepository;
 
-	
+    @Autowired
+	private TeamSessionDataRepository teamSessionDataRepository;
+    
+    @Autowired
+    private SessionOverDataRepository SessionOverDataRepository;
 	
 
 
@@ -174,6 +182,30 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
             }
             entity.setOversData(savedOversDataList);
         }
+        
+     // Update each TeamSessionData
+        Map<String, List<SessionOverData>> teamWiseSessionData = data.getTeamWiseSessionData();
+        if (teamWiseSessionData != null) {
+            List<TeamSessionData> savedTeamSessionDataList = new ArrayList<>();
+            for (Map.Entry<String, List<SessionOverData>> entry : teamWiseSessionData.entrySet()) {
+                TeamSessionData teamSessionData = teamSessionDataRepository.findByTeamNameAndCricketDataEntity(entry.getKey(), entity);
+                if (teamSessionData == null) {
+                    teamSessionData = new TeamSessionData();
+                    teamSessionData.setTeamName(entry.getKey());
+                    teamSessionData.setCricketDataEntity(entity);  // Set the reference to the parent entity
+                }
+                List<SessionOverData> sessionOverDataList = new ArrayList<>();
+                for (SessionOverData sessionOverData : entry.getValue()) {
+                    sessionOverData = SessionOverDataRepository.save(sessionOverData);  // Save the SessionOverData first
+                    sessionOverDataList.add(sessionOverData);
+                }
+                teamSessionData.setSessionOverDataList(sessionOverDataList);
+                teamSessionDataRepository.save(teamSessionData);  // Save the TeamSessionData
+                savedTeamSessionDataList.add(teamSessionData);
+            }
+            entity.setTeamWiseSessionData(savedTeamSessionDataList);
+        }
+        
         return entity;
     }
     
@@ -197,6 +229,16 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         //data.setTossWonCountry(entity.getTossWonCountry());
         //data.setBatOrBallSelected(entity.getBatOrBallSelected());
         //data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
+        
+        // Convert TeamSessionData to Map
+        List<TeamSessionData> teamSessionDataList = entity.getTeamWiseSessionData();
+        if (teamSessionDataList != null) {
+            Map<String, List<SessionOverData>> teamWiseSessionData = new HashMap<>();
+            for (TeamSessionData teamSessionData : teamSessionDataList) {
+                teamWiseSessionData.put(teamSessionData.getTeamName(), teamSessionData.getSessionOverDataList());
+            }
+            data.setTeamWiseSessionData(teamWiseSessionData);
+        }
         return data;
     }
     

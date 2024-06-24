@@ -143,6 +143,11 @@ public class CricketDataController {
 				nonNullFields.put("overs_data", data.getOversData());
 				existingData.setOversData(data.getOversData());
 			}
+			
+			if (data.getTeamWiseSessionData() != null && !data.getTeamWiseSessionData().isEmpty()) {
+                nonNullFields.put("team_wise_session_data", data.getTeamWiseSessionData());
+                existingData.setTeamWiseSessionData(data.getTeamWiseSessionData());
+            }
 
 			existingData.setLastUpdated(System.currentTimeMillis());
 			cricketDataService.setLastUpdatedData(existingData.getUrl(), existingData);

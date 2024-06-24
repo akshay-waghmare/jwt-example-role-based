@@ -5,7 +5,12 @@ import java.math.BigDecimal;
 import java.util.Date;
 
 @Entity
-@Table(name = "bets")
+@Table(name = "bets", indexes = {
+	    @Index(name = "idx_match_url", columnList = "matchUrl"),
+	    @Index(name = "idx_user_id", columnList = "user_id"),
+	    @Index(name = "idx_team_name", columnList = "teamName"),
+	    @Index(name = "idx_status", columnList = "status")
+	})
 public class Bets {
 
 	@Id

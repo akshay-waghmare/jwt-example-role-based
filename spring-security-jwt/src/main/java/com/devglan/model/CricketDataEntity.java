@@ -1,10 +1,13 @@
 package com.devglan.model;
-import java.util.List;
 
+import java.util.List;
 import javax.persistence.ElementCollection;
 import javax.persistence.Embedded;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.Id;
+import javax.persistence.Index;
+import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
@@ -14,7 +17,10 @@ import com.devglan.dao.SessionOdds;
 import com.devglan.dao.TeamOdds;
 
 @Entity
-@Table(name = "cricket_data")
+@Table(name = "cricket_data", indexes = {
+    @Index(name = "idx_url", columnList = "url"),
+    @Index(name = "idx_updated_time_stamp", columnList = "updatedTimeStamp")
+})
 public class CricketDataEntity {
 
     @Id
@@ -35,11 +41,14 @@ public class CricketDataEntity {
 
     @Embedded
     private SessionOdds sessionOdds;
+    
+    @OneToMany(mappedBy = "cricketDataEntity", fetch = FetchType.LAZY, cascade = javax.persistence.CascadeType.ALL)
+    private List<TeamSessionData> teamWiseSessionData;
 
     private String currentRunRate;
     private String finalResultText;
     
-    @OneToMany
+    @OneToMany(mappedBy = "cricketDataEntity", fetch = FetchType.LAZY, cascade = javax.persistence.CascadeType.ALL)
     private List<OversData> oversData;
 
     private String tossWonCountry;
@@ -150,6 +159,14 @@ public class CricketDataEntity {
 
     public void setOversData(List<OversData> oversData) {
         this.oversData = oversData;
+    }
+
+    public List<TeamSessionData> getTeamWiseSessionData() {
+        return teamWiseSessionData;
+    }
+
+    public void setTeamWiseSessionData(List<TeamSessionData> teamWiseSessionData) {
+        this.teamWiseSessionData = teamWiseSessionData;
     }
 
     public String getTossWonCountry() {

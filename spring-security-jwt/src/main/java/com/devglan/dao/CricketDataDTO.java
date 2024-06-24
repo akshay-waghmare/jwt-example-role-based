@@ -1,7 +1,9 @@
 package com.devglan.dao;
 
 import java.util.List;
+import java.util.Map;
 
+import com.devglan.model.TeamSessionData;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class CricketDataDTO {
@@ -33,9 +35,30 @@ public class CricketDataDTO {
     @JsonProperty("overs_data")
     private List<OversData> oversData;
     
+    private Map<String, List<SessionOverData>> teamWiseSessionData;
+    
 //	@JsonProperty("team_player_info")
 //	//@JsonDeserialize(using = TeamPlayerInfoDeserializer.class)
 //	private Map<String, List<String>> team_player_info;
+
+	
+
+
+	public long getUpdatedTimeStamp() {
+		return updatedTimeStamp;
+	}
+
+	public Map<String, List<SessionOverData>> getTeamWiseSessionData() {
+		return teamWiseSessionData;
+	}
+
+	public void setTeamWiseSessionData(Map<String, List<SessionOverData>> teamWiseSessionData) {
+		this.teamWiseSessionData = teamWiseSessionData;
+	}
+
+	public void setUpdatedTimeStamp(long updatedTimeStamp) {
+		this.updatedTimeStamp = updatedTimeStamp;
+	}
 
 	private String toss_won_country;
 	private String bat_or_ball_selected;
@@ -178,6 +201,8 @@ public class CricketDataDTO {
 	public void setOversData(List<OversData> oversData) {
 		this.oversData = oversData;
 	}
+
+	
 	
 	
 	
