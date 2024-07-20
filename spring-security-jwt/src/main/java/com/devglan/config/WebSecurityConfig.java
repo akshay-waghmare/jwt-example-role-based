@@ -85,5 +85,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	public RestTemplate restTemplate() {
 		return new RestTemplate();
 	}
+	
+	
 
 }

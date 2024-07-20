@@ -141,4 +141,10 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 		// Implement logic to append base URL if needed
 		return "https://crex.live" + url;
 	}
+
+	
+	@Override
+	public LiveMatch update(LiveMatch match) {
+		return liveMatchRepository.save(match);
+	}
 }

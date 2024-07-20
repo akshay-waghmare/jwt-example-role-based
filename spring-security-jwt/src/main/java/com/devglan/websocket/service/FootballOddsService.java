@@ -52,7 +52,7 @@ public class FootballOddsService implements ApplicationListener<BrokerAvailabili
 		this.brokerAvailable.set(event.isBrokerAvailable());
 	}
 
-	@Scheduled(fixedDelay=30000)
+	//@Scheduled(fixedDelay=30000)
 	public void sendQuotes() {
 			String inplayData = this.getOddsInplay();
 			

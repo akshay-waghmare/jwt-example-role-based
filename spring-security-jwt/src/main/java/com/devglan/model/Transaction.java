@@ -108,4 +108,14 @@ public class Transaction {
     public void setBalanceAfterTransaction(BigDecimal balanceAfterTransaction) {
         this.balanceAfterTransaction = balanceAfterTransaction;
     }
+
+	public User getUser() {
+		return user;
+	}
+
+	public void setUser(User user) {
+		this.user = user;
+	}
+
+	
 }

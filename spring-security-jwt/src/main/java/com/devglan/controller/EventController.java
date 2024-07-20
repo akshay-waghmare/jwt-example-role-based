@@ -42,7 +42,9 @@ public class EventController {
 		// implement global error controller advice
 		try {
 			// for development purposes avoiding calls as calls are limited so hard coding
-			String events = "[{\"id\":1,\"name\":\"Football\"},{\"id\":2,\"name\":\"Tennis\"},{\"id\":3,\"name\":\"Basketball\"}]";
+//			String events = "[{\"id\":1,\"name\":\"Football\"},{\"id\":2,\"name\":\"Tennis\"},{\"id\":3,\"name\":\"Basketball\"}]";
+			String events = "[]";
+			
 			List<Event> entity = objectMapper.readValue(events, new TypeReference<List<Event>>() {
 			});
 

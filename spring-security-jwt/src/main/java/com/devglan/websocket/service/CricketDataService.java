@@ -18,12 +18,17 @@ package com.devglan.websocket.service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.transaction.Transactional;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.messaging.core.MessageSendingOperations;
@@ -146,14 +151,33 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
     }
 
     // Method to get the last updated data for a specific URL
+    @org.springframework.transaction.annotation.Transactional
     public synchronized CricketDataDTO getLastUpdatedData(String url) {
         //return lastUpdatedDataMap.get(url);
-    	CricketDataEntity entity = cricketDataRepository.findById(url).orElse(null);
+    	CricketDataEntity entity = cricketDataRepository.findByUrlWithTeamWiseSessionData(url);
+    	if (entity != null) {
+    		Hibernate.initialize(entity.getMatchOdds());
+            Hibernate.initialize(entity.getTeamWiseSessionData()); // Explicitly initialize
+        }
         return convertEntityToDto(entity);
     	
     	
     }
     
+    @org.springframework.transaction.annotation.Transactional
+    public CricketDataDTO getCricData(String url) {
+        //return lastUpdatedDataMap.get(url);
+    	CricketDataEntity entity = cricketDataRepository.findByUrlContaining(url);
+    	if (entity != null) {
+    		Hibernate.initialize(entity.getMatchOdds());
+            Hibernate.initialize(entity.getTeamWiseSessionData()); // Explicitly initialize
+        }
+        return convertEntityToDto(entity);
+    	
+    	
+    }
+    
+    @Transactional
     private CricketDataEntity convertDtoToEntity(String url, CricketDataDTO data) {
         CricketDataEntity entity = new CricketDataEntity();
         entity.setUrl(url);
@@ -168,6 +192,7 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         entity.setSessionOdds(data.getSessionOdds());
         entity.setCurrentRunRate(data.getCurrentRunRate());
         entity.setFinalResultText(data.getFinalResultText());
+        entity.setUpdatedTimeStamp(System.currentTimeMillis());
 //        entity.setOversData(data.getOversData());
         //entity.setTossWonCountry(data.getTossWonCountry());
         //entity.setBatOrBallSelected(data.getBatOrBallSelected());
@@ -209,7 +234,8 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         return entity;
     }
     
-    private CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
+    @org.springframework.transaction.annotation.Transactional
+    public CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -226,6 +252,7 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         data.setCurrentRunRate(entity.getCurrentRunRate());
         data.setFinalResultText(entity.getFinalResultText());
         data.setOversData(entity.getOversData());
+        data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
         //data.setTossWonCountry(entity.getTossWonCountry());
         //data.setBatOrBallSelected(entity.getBatOrBallSelected());
         //data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
@@ -240,10 +267,6 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
             data.setTeamWiseSessionData(teamWiseSessionData);
         }
         return data;
-    }
-    
-    
-    
-    
+    }   
 
 }

@@ -9,19 +9,29 @@ import com.devglan.model.Bets;
 public class BetResponse {
     private List<Bets> bets;
     private Map<String, BigDecimal> adjustedExposures;
+    private Map<String, BigDecimal> sessionExposures;
 
     // Constructors, getters, and setters
 
-    public BetResponse(List<Bets> bets, Map<String, BigDecimal> adjustedExposures) {
+    public BetResponse(List<Bets> bets, Map<String, BigDecimal> adjustedExposures, Map<String, BigDecimal> sessionExposures) {
         this.bets = bets;
         this.adjustedExposures = adjustedExposures;
+        this.sessionExposures = sessionExposures;
     }
 
     public List<Bets> getBets() {
         return bets;
     }
 
-    public void setBets(List<Bets> bets) {
+    public Map<String, BigDecimal> getSessionExposures() {
+		return sessionExposures;
+	}
+
+	public void setSessionExposures(Map<String, BigDecimal> sessionExposures) {
+		this.sessionExposures = sessionExposures;
+	}
+
+	public void setBets(List<Bets> bets) {
         this.bets = bets;
     }
 

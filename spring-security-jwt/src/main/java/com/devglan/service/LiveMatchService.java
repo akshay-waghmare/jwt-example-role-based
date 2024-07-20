@@ -10,11 +10,14 @@ import com.devglan.model.LiveMatch;
 public interface LiveMatchService {
 	void syncLiveMatches(String[] urls);
 
+	public List<LiveMatch> findAllMatches();
     List<LiveMatch> findAll();
     public ResponseEntity<CricketDataDTO> fetchAndSendData(String url);
     public String appendBaseUrl(String url);
 
 	public List<LiveMatch> findAllFinishedMatches();
 	public LiveMatch findByUrl(String url);
+	
+	LiveMatch update(LiveMatch match);
     
 }

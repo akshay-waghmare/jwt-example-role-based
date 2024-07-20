@@ -37,7 +37,7 @@ public class TennisOddsService implements ApplicationListener<BrokerAvailability
 		logger.info(event.isBrokerAvailable());
 	}
 
-	@Scheduled(fixedDelay=6000)
+	//@Scheduled(fixedDelay=6000)
 	public void sendQuotes() {
 			String inplayData = this.getOddsInplay();
 		//System.out.println(inplayData.toString());

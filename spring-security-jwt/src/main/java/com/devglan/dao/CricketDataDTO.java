@@ -2,8 +2,8 @@ package com.devglan.dao;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import com.devglan.model.TeamSessionData;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class CricketDataDTO {
@@ -198,10 +198,11 @@ public class CricketDataDTO {
 		return oversData;
 	}
 
-	public void setOversData(List<OversData> oversData) {
-		this.oversData = oversData;
+	public void setOversData(List<OversData> list) {
+		this.oversData = list;
 	}
 
+	
 	
 	
 	

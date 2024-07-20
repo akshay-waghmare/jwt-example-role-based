@@ -47,6 +47,13 @@ public class Bets {
 	@Temporal(TemporalType.TIMESTAMP)
 	private Date placedAt;
 
+    @Column(name = "isSessionBet")
+    private Boolean isSessionBet = false; // Provide a default value
+
+
+    @Column(name = "sessionName")
+    private String sessionName;
+
 	// Constructors, Getters, and Setters
 	// Constructor
 	public Bets() {
@@ -132,8 +139,20 @@ public class Bets {
 	public void setMatchUrl(String matchUrl) {
 		this.matchUrl = matchUrl;
 	}
-	
-	
-	
-	
+
+    public Boolean getIsSessionBet() {
+        return isSessionBet;
+    }
+
+    public void setIsSessionBet(Boolean isSessionBet) {
+        this.isSessionBet = isSessionBet;
+    }
+
+    public String getSessionName() {
+        return sessionName;
+    }
+
+    public void setSessionName(String sessionName) {
+        this.sessionName = sessionName;
+    }
 }

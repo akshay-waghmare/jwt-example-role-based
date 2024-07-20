@@ -2,6 +2,7 @@ package com.devglan.model;
 
 import java.util.List;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -20,7 +21,7 @@ public class TeamSessionData {
 
     private String teamName;
 
-    @OneToMany
+    @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "team_session_data_id")
     private List<SessionOverData> sessionOverDataList;
 

@@ -1,14 +1,18 @@
 package com.devglan.model;
 
+import java.time.Instant;
 import java.util.List;
+
+import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Embedded;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.Index;
-import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 import javax.persistence.Table;
 
 import com.devglan.dao.MatchOdds;
@@ -18,8 +22,7 @@ import com.devglan.dao.TeamOdds;
 
 @Entity
 @Table(name = "cricket_data", indexes = {
-    @Index(name = "idx_url", columnList = "url"),
-    @Index(name = "idx_updated_time_stamp", columnList = "updatedTimeStamp")
+    @Index(name = "cricket_url", columnList = "url"),
 })
 public class CricketDataEntity {
 
@@ -42,7 +45,7 @@ public class CricketDataEntity {
     @Embedded
     private SessionOdds sessionOdds;
     
-    @OneToMany(mappedBy = "cricketDataEntity", fetch = FetchType.LAZY, cascade = javax.persistence.CascadeType.ALL)
+    @OneToMany(mappedBy = "cricketDataEntity", fetch = FetchType.EAGER, cascade = javax.persistence.CascadeType.ALL)
     private List<TeamSessionData> teamWiseSessionData;
 
     private String currentRunRate;
@@ -53,6 +56,8 @@ public class CricketDataEntity {
 
     private String tossWonCountry;
     private String batOrBallSelected;
+    
+    @Column(name = "UPDATED_TIME_STAMP")
     private long updatedTimeStamp;
 
     // Getters and setters
@@ -185,11 +190,19 @@ public class CricketDataEntity {
         this.batOrBallSelected = batOrBallSelected;
     }
 
-    public long getUpdatedTimeStamp() {
-        return updatedTimeStamp;
+    @PrePersist
+    @PreUpdate
+    protected void onUpdate() {
+        updatedTimeStamp = Instant.now().toEpochMilli();
     }
 
-    public void setUpdatedTimeStamp(long updatedTimeStamp) {
-        this.updatedTimeStamp = updatedTimeStamp;
-    }
+	public long getUpdatedTimeStamp() {
+		return updatedTimeStamp;
+	}
+
+	public void setUpdatedTimeStamp(long updatedTimeStamp) {
+		this.updatedTimeStamp = updatedTimeStamp;
+	}
+ 
+    
 }

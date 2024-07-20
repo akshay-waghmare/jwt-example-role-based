@@ -1,10 +1,14 @@
 package com.devglan.controller;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
@@ -12,6 +16,7 @@ import javax.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -26,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.devglan.dao.BetResponse;
 import com.devglan.dao.CricketDataDTO;
+import com.devglan.dao.ProfitLossDTO;
+import com.devglan.dao.SessionOverData;
 import com.devglan.model.Bets;
+import com.devglan.model.ExposureResult;
 import com.devglan.model.LiveMatch;
-import com.devglan.model.ProfitLoss;
 import com.devglan.model.User;
 import com.devglan.service.BetService;
 import com.devglan.service.LiveMatchService;
@@ -143,11 +150,11 @@ public class CricketDataController {
 				nonNullFields.put("overs_data", data.getOversData());
 				existingData.setOversData(data.getOversData());
 			}
-			
+
 			if (data.getTeamWiseSessionData() != null && !data.getTeamWiseSessionData().isEmpty()) {
-                nonNullFields.put("team_wise_session_data", data.getTeamWiseSessionData());
-                existingData.setTeamWiseSessionData(data.getTeamWiseSessionData());
-            }
+				nonNullFields.put("team_wise_session_data", data.getTeamWiseSessionData());
+				existingData.setTeamWiseSessionData(data.getTeamWiseSessionData());
+			}
 
 			existingData.setLastUpdated(System.currentTimeMillis());
 			cricketDataService.setLastUpdatedData(existingData.getUrl(), existingData);
@@ -162,30 +169,37 @@ public class CricketDataController {
 		}
 	}
 
-	 @GetMapping("/bet/profit-loss")
-	    public ResponseEntity<List<ProfitLoss>> getProfitLoss() {
-	        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-	        String currentUsername = authentication.getName();
-			User user = userService.findOne(currentUsername);
-	        List<ProfitLoss> profitLoss = betService.calculateProfitLoss(user.getId());
+	@GetMapping("/bet/profit-loss")
+	public ResponseEntity<Map<String, ProfitLossDTO>> getProfitLoss(
+	    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") Date startDate,
+	    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") Date endDate) {
 
+	    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+	    String currentUsername = authentication.getName();
+	    User user = userService.findOne(currentUsername);
+
+	    if (user != null) {
+	        Map<String, ProfitLossDTO> profitLoss = betService.calculateOverallProfitLoss(user.getId(), startDate, endDate);
 	        return ResponseEntity.ok(profitLoss);
+	    } else {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
 	    }
-	 
+	}
+
 	@GetMapping("/bet/history")
-    public ResponseEntity<BetResponse> getBetHistory() {
+	public ResponseEntity<BetResponse> getBetHistory() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		String currentUsername = authentication.getName();
 		User user = userService.findOne(currentUsername);
 		List<Bets> betsByUserId = betService.getBetsByUserId(user.getId());
 		List<Bets> filteredBets = betsByUserId.stream()
-                .filter(bet -> !("WON".equalsIgnoreCase(bet.getStatus()) || "LOST".equalsIgnoreCase(bet.getStatus())))
-                .collect(Collectors.toList());
-		 BetResponse response = new BetResponse(filteredBets, null);
-		
-        return ResponseEntity.ok(response);
-    }
-	
+				.filter(bet -> !("WON".equalsIgnoreCase(bet.getStatus()) || "LOST".equalsIgnoreCase(bet.getStatus())))
+				.collect(Collectors.toList());
+		BetResponse response = new BetResponse(filteredBets, null, null);
+
+		return ResponseEntity.ok(response);
+	}
+
 	@GetMapping("/last-updated-data")
 	public ResponseEntity<CricketDataDTO> getLastUpdatedData(@RequestParam String url) {
 		// Retrieve the last updated data for the specific URL
@@ -239,89 +253,164 @@ public class CricketDataController {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		String currentUsername = authentication.getName();
 		User user = userService.findOne(currentUsername);
-
-		List<Bets> bets = betService.getBetsForMatch(url, user.getId());
-		Map<String, List<Bets>> betsByTeam = bets.stream()
-                .filter(bet -> !"Cancelled".equals(bet.getStatus()))
-                .collect(Collectors.groupingBy(Bets::getTeamName));
 		
-	    Map<String, Map<String, BigDecimal>> matchExposures = betService.calculateMatchExposures(betsByTeam);
-	    Map<String, BigDecimal> adjustedExposuresForAllTeams = betService.adjustExposuresForAllTeams(
-	    		matchExposures);
+		Set<String> excludedStatuses = new HashSet<>(Arrays.asList("Won", "Lost", "Pending", "Cancelled"));
 
-	    BetResponse response = new BetResponse(bets, adjustedExposuresForAllTeams);
-	    log.info("sending all bets response {}", response.getBets());
+		List<Bets> bets = betService.getBetsForMatchForUser(url, user.getId());
+		Map<String, List<Bets>> betsByTeam = bets.stream()
+                .filter(bet -> !excludedStatuses.contains(bet.getStatus()) && !bet.getIsSessionBet())
+                .collect(Collectors.groupingBy(Bets::getTeamName));
+
+		Map<String, Map<String, BigDecimal>> matchExposures = betService.calculateMatchExposures(betsByTeam);
+		Map<String, BigDecimal> adjustedExposuresForAllTeams = betService.adjustExposuresForAllTeams(matchExposures);
+		
+		Map<String, List<Bets>> sessionBetList = bets.stream()
+                .filter(bet -> !excludedStatuses.contains(bet.getStatus()) && bet.getIsSessionBet())
+                .collect(Collectors.groupingBy(Bets::getSessionName));
+
+		 Map<String, BigDecimal> sessionExposures = new HashMap<>();
+	        sessionBetList.forEach((sessionName, sessionBets) -> {
+	            ExposureResult exposure = betService.calculateSessionExposureExtended(sessionBets);
+	            sessionExposures.put(sessionName + " " + exposure.getHigherExposure() , exposure.getTotalExposure());
+	        });
+	        
+		BetResponse response = new BetResponse(bets, adjustedExposuresForAllTeams , sessionExposures);
+		log.info("sending all bets response {}", response.getBets());
 
 		return ResponseEntity.ok(response);
+	}
+	
+	@GetMapping("/get-match-bet-with-exposure")
+	public ResponseEntity<Map<String, BetResponse>> getMatchBetsWithExposure() {
+
+	    Set<String> excludedStatuses = new HashSet<>(Arrays.asList("Won", "Lost", "Pending", "Cancelled"));
+
+	    List<LiveMatch> allLive = liveMatchService.findAll();
+	    
+	    Map<String, BetResponse> responseMap = new HashMap<>();
+
+	    allLive.forEach(liveMatch -> {
+	        String matchUrl = liveMatch.getUrl();
+	        List<Bets> bets = betService.getBetsForMatch(matchUrl);
+	        Map<String, List<Bets>> betsByTeam = bets.stream()
+	                .filter(bet -> !excludedStatuses.contains(bet.getStatus()) && !bet.getIsSessionBet())
+	                .collect(Collectors.groupingBy(Bets::getTeamName));
+	        
+	        Map<String, Map<String, BigDecimal>> matchExposures = betService.calculateMatchExposures(betsByTeam);
+	        Map<String, BigDecimal> adjustedExposuresForAllTeams = betService.adjustExposuresForAllTeams(matchExposures);
+	        
+	        Map<String, List<Bets>> sessionBetList = bets.stream()
+	                .filter(bet -> !excludedStatuses.contains(bet.getStatus()) && bet.getIsSessionBet())
+	                .collect(Collectors.groupingBy(Bets::getSessionName));
+	        
+	        Map<String, BigDecimal> sessionExposures = new HashMap<>();
+	        sessionBetList.forEach((sessionName, sessionBets) -> {
+	            ExposureResult exposure = betService.calculateSessionExposureExtended(sessionBets);
+	            sessionExposures.put(sessionName + " " + exposure.getHigherExposure() , exposure.getTotalExposure());
+	        });
+	        
+	        BetResponse response = new BetResponse(bets, adjustedExposuresForAllTeams , sessionExposures );
+	        log.info("Sending all bets response for URL {}: {}", matchUrl, response.getBets());
+	        
+	        responseMap.put(matchUrl, response);
+	    });
+
+	    return ResponseEntity.ok(responseMap);
 	}
 
 	@PostMapping("/placeBet")
 	@Transactional
-	public ResponseEntity<?> placeBet(@RequestBody Bets bet) {
-		// Retrieve the Authentication object from the SecurityContext
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		// Extract the username of the currently authenticated user
-		String currentUsername = authentication.getName();
+	public CompletableFuture<ResponseEntity<?>> placeBet(@RequestBody Bets bet) {
+	    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+	    String currentUsername = authentication.getName();
+	    User user = userService.findOne(currentUsername);
 
-		// Use the UserService to fetch the User object based on the username
-		User user = userService.findOne(currentUsername);
-		if (user != null) {
+	    if (user != null) {
+	        BigDecimal userBalance = user.getBalance();
+	        BigDecimal userExposure = user.getExposure();
+	        BigDecimal betAmount = bet.getAmount();
+	        String cancellationReason = "";
 
-			// Check if the user has enough balance to place the bet
-			BigDecimal userBalance = user.getBalance();
-			BigDecimal betAmount = bet.getAmount();
+	        boolean isBetValid = false;
+	        LiveMatch match = liveMatchService.findByUrl(bet.getMatchUrl());
+	        if (match != null) {
 
-			// If the user is found, associate the bet with the user
-			boolean isBetValid = false;
+	            if (match.isDeleted() || match.getDeletionAttempts() > 1) {
+	                // trying to place bet on a finished match
+	                cancellationReason = "Cannot accept bet on finished match";
+	                return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	            }
+	            
+	            if (bet.getIsSessionBet()) {
+	                SessionOverData sessionResult = betService.getSessionResult(match, bet.getSessionName());
+	                if (sessionResult != null && sessionResult.getName() != null
+	                        && (sessionResult.getName() != bet.getSessionName())) {
+	                    // trying to place a bet which is finished
+	                    cancellationReason = "Cannot accept session bet for finished session : " + sessionResult.getName();
+	                    return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	                }
+	            }
+	        }
 
-			if ("back".equalsIgnoreCase(bet.getBetType()) && userBalance.compareTo(betAmount) >= 0) {
-				// If it's a back bet and the user has enough balance, proceed
-				isBetValid = true;
-				// Deduct the bet amount from the user's balance
-				// user.setBalance(userBalance.subtract(betAmount));
-			} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
-				// For lay bets, you might have different logic, depending on your betting rules
-				// Here, we assume the user can place the bet without balance restrictions
+	        // Check if the odds are null
+	        if (bet.getOdd() == null || bet.getOdd().compareTo(BigDecimal.ONE) == 0) {
+	            cancellationReason = "Odds must not be null";
+	            cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	        }
+	        
+	        if(bet.getAmount().compareTo(BigDecimal.valueOf(1000)) < 0) {
+	            cancellationReason = "Minimum bet 1000";
+	            cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	        }
 
-				BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
-				if (userBalance.compareTo(potentialPayout) >= 0) {
-					isBetValid = true;
-					// Here, you might want to reserve the potential payout amount from the user's
-					// balance
-					// depending on your application's requirements.
-					// user.setBalance(userBalance.subtract(potentialPayout));
-				} else {
-					isBetValid = false;
-					// cancel the bet if not valid
-				}
-				// No balance deduction for lay bets in this example
-			}
+	        // Validate if the odds are in numeric format
+	        try {
+	            BigDecimal odds = new BigDecimal(bet.getOdd().toString());
+	            bet.setOdd(odds);
+	        } catch (NumberFormatException e) {
+	            cancellationReason = "Odds must be in numeric format";
+	            cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	        }
 
-			if (isBetValid) {
-				// Associate the bet with the user
-				bet.setUser(user);
-				// Set the placedAt time to the current date and time
-				bet.setPlacedAt(new Date());
-				// Set bet status as pending for now
-				bet.setStatus("Pending");
-				Bets savedBet = betService.placeBet(bet);
-				// confirm/cancel bet with respect to the latest stable odds
-				betService.checkAndConfirmBet(bet, currentUsername);
+	        if ("back".equalsIgnoreCase(bet.getBetType())
+	                && userBalance.subtract(userExposure).compareTo(betAmount) >= 0) {
+	            isBetValid = true;
+	        } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+	            BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
+	            if (userBalance.subtract(userExposure).compareTo(potentialPayout) >= 0) {
+	                isBetValid = true;
+	            } else {
+	                isBetValid = false;
+	                cancellationReason = "Insufficient balance for this bet";
+	            }
+	        } else if (bet.getIsSessionBet() != null && bet.getIsSessionBet()) {
 
-				// Save the updated user balance
-				userService.updateUser(user);
-				// Save the bet using the BetService and store the returned instance
-				// Respond with the saved bet details
-				return ResponseEntity.ok(savedBet);
-			} else {
+	            if (userBalance.subtract(userExposure).compareTo(betAmount) >= 0) {
+	                isBetValid = true;
+	            } else {
+	                isBetValid = false;
+	                cancellationReason = "Insufficient balance for this bet";
+	            }
+	        }
 
-				cricketDataService.notifyBetStatus(betService.cancelBet(bet));
-				// Respond indicating the user does not have enough balance
-				return ResponseEntity.badRequest().body("Insufficient balance for this bet.");
-			}
-		} else {
-			// If the user is not found, respond with an Unauthorized status
-			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found.");
-		}
+	        if (isBetValid) {
+	            bet.setUser(user);
+	            bet.setPlacedAt(new Date());
+	            bet.setStatus("Pending");
+	            Bets savedBet = betService.placeBet(bet);
+	            //cricketDataService.notifyBetStatus(savedBet);
+	            CompletableFuture<ResponseEntity<?>> responseEntityFuture = betService.checkAndConfirmBet(savedBet, currentUsername);
+	            //userService.updateUser(user);
+	            return responseEntityFuture;
+	        } else {
+	            cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+	        }
+	    } else {
+	        return CompletableFuture.completedFuture(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found."));
+	    }
 	}
 }

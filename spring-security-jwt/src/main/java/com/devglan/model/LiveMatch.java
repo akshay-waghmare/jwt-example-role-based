@@ -1,5 +1,6 @@
 package com.devglan.model;
 
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -9,7 +10,6 @@ import javax.persistence.Table;
 
 @Entity
 @Table(name = "LIVE_MATCH", indexes = {
-	    @Index(name = "idx_url", columnList = "url"),
 	    @Index(name = "idx_is_deleted", columnList = "isDeleted")
 	})
 public class LiveMatch {
@@ -23,6 +23,17 @@ public class LiveMatch {
 	private boolean isDeleted = false; // Soft delete flag
     private String lastKnownState; // JSON string to store the last known state
     private int deletionAttempts = 0; // Counter for deletion attempts
+    
+    @Column(name="isDistributionDone")
+    private Boolean distributionDone=false;
+
+	public Boolean isDistributionDone() {
+		 return Boolean.TRUE.equals(distributionDone);
+	}
+
+	public void setDistributionDone(Boolean distributionDone) {
+		this.distributionDone = distributionDone;
+	}
 
 	public boolean isDeleted() {
 		return isDeleted;

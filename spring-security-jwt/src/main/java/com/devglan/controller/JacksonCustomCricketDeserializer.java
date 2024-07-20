@@ -143,8 +143,22 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
                 cricketData.setFavTeam(firstTeamDataNode.get("teamName").asText());
                 
                 TeamOdds teamOdds = new TeamOdds();
-                teamOdds.setBackOdds(firstTeamDataNode.get("backOdds").asText());
-                teamOdds.setLayOdds(firstTeamDataNode.get("layOdds").asText());
+                
+                int backOdds = firstTeamDataNode.get("backOdds").asInt();
+                int layOdds = firstTeamDataNode.get("layOdds").asInt();
+                
+                if (backOdds > 30) {
+                    backOdds -= 1;
+                }
+                
+                if (layOdds > 30) {
+                    layOdds += 1;
+                } else {
+                    layOdds += 1;
+                }
+                
+                teamOdds.setBackOdds(String.valueOf(backOdds));
+                teamOdds.setLayOdds(String.valueOf(layOdds));
                 cricketData.setTeamOdds(teamOdds);
             }
         }
@@ -155,8 +169,21 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
             if (sessionDataNode != null && sessionDataNode.has("sessionName")) {              
                 SessionOdds sessionOdds = new SessionOdds();
                 JsonNode oddsNode = sessionDataNode.get("odds").get(0);
-                sessionOdds.setSessionBackOdds(oddsNode.get("value").asText());
-                sessionOdds.setSessionLayOdds(oddsNode.get("value").asText());
+                int sessionBackOdds = oddsNode.get("value").asInt();
+                oddsNode = sessionDataNode.get("odds").get(1);
+                int sessionLayOdds = oddsNode.get("value").asInt();
+                if(sessionBackOdds != 0) {                	
+                	if (sessionBackOdds == sessionLayOdds) {
+                		sessionLayOdds += 1;
+                	}
+                	sessionOdds.setSessionBackOdds(String.valueOf(sessionBackOdds));
+                	sessionOdds.setSessionLayOdds(String.valueOf(sessionLayOdds));
+                }
+                else {
+                	sessionOdds.setSessionBackOdds(oddsNode.get("value").asText());
+                	sessionOdds.setSessionLayOdds(oddsNode.get("value").asText());
+                }
+                
                 sessionOdds.setSessionOver(sessionDataNode.get("sessionName").asText());
                 cricketData.setSessionOdds(sessionOdds);
             }
