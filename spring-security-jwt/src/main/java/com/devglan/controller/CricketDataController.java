@@ -83,6 +83,7 @@ public class CricketDataController {
 			if (data.getTeamOdds() != null) {
 				nonNullFields.put("team_odds", data.getTeamOdds());
 				existingData.setTeamOdds(data.getTeamOdds());
+				existingData.setLastUpdated(System.currentTimeMillis());
 			}
 			if (data.getCurrentRunRate() != null) {
 				nonNullFields.put("crr", data.getCurrentRunRate());
@@ -96,6 +97,7 @@ public class CricketDataController {
 			if (data.getMatchOdds() != null && !data.getMatchOdds().isEmpty()) {
 				nonNullFields.put("match_odds", data.getMatchOdds());
 				existingData.setMatchOdds(data.getMatchOdds());
+				existingData.setLastUpdated(System.currentTimeMillis());
 			}
 			if (data.getOver() != null) {
 				nonNullFields.put("over", data.getOver());
@@ -140,6 +142,7 @@ public class CricketDataController {
 			if (data.getSessionOdds() != null) {
 				nonNullFields.put("session_odds", data.getSessionOdds());
 				existingData.setSessionOdds(data.getSessionOdds());
+				existingData.setLastUpdated(System.currentTimeMillis());
 			}
 			if (data.getUrl() != null) {
 				nonNullFields.put("url", data.getUrl());
@@ -156,7 +159,6 @@ public class CricketDataController {
 				existingData.setTeamWiseSessionData(data.getTeamWiseSessionData());
 			}
 
-			existingData.setLastUpdated(System.currentTimeMillis());
 			cricketDataService.setLastUpdatedData(existingData.getUrl(), existingData);
 
 			cricketDataService.sendCricketData(data.getUrl(), nonNullFields);
@@ -366,35 +368,35 @@ public class CricketDataController {
 	        }
 
 	        // Validate if the odds are in numeric format
-	        try {
-	            BigDecimal odds = new BigDecimal(bet.getOdd().toString());
-	            bet.setOdd(odds);
-	        } catch (NumberFormatException e) {
-	            cancellationReason = "Odds must be in numeric format";
-	            cricketDataService.notifyBetStatus(betService.cancelBet(bet));
-	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
-	        }
+			try {
+				BigDecimal odds = new BigDecimal(bet.getOdd().toString());
+				bet.setOdd(odds);
+			} catch (NumberFormatException e) {
+				cancellationReason = "Odds must be in numeric format";
+				cricketDataService.notifyBetStatus(betService.cancelBet(bet));
+				return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(cancellationReason));
+			}
 
-	        if ("back".equalsIgnoreCase(bet.getBetType())
-	                && userBalance.subtract(userExposure).compareTo(betAmount) >= 0) {
-	            isBetValid = true;
-	        } else if ("lay".equalsIgnoreCase(bet.getBetType())) {
-	            BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
-	            if (userBalance.subtract(userExposure).compareTo(potentialPayout) >= 0) {
-	                isBetValid = true;
-	            } else {
-	                isBetValid = false;
-	                cancellationReason = "Insufficient balance for this bet";
-	            }
-	        } else if (bet.getIsSessionBet() != null && bet.getIsSessionBet()) {
+			if ("back".equalsIgnoreCase(bet.getBetType())) {
+				isBetValid = true;
+			} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
+				BigDecimal potentialPayout = bet.getOdd().subtract(BigDecimal.ONE).multiply(betAmount);
+				/*
+				 * if (userBalance.subtract(userExposure).compareTo(potentialPayout) >= 0) {
+				 * isBetValid = true; } else { isBetValid = false; cancellationReason =
+				 * "Insufficient balance for this bet"; }
+				 */
+				isBetValid = true;
+			} else if (bet.getIsSessionBet() != null && bet.getIsSessionBet()) {
 
-	            if (userBalance.subtract(userExposure).compareTo(betAmount) >= 0) {
-	                isBetValid = true;
-	            } else {
-	                isBetValid = false;
-	                cancellationReason = "Insufficient balance for this bet";
-	            }
-	        }
+				/*
+				 * if (userBalance.subtract(userExposure).compareTo(betAmount) >= 0) {
+				 * isBetValid = true; } else { isBetValid = false; cancellationReason =
+				 * "Insufficient balance for this bet"; }
+				 */
+				isBetValid = true;
+			}
+			 
 
 	        if (isBetValid) {
 	            bet.setUser(user);

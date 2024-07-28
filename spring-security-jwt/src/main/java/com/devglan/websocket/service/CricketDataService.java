@@ -178,61 +178,64 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
     }
     
     @Transactional
-    private CricketDataEntity convertDtoToEntity(String url, CricketDataDTO data) {
-        CricketDataEntity entity = new CricketDataEntity();
-        entity.setUrl(url);
-        entity.setMatchOdds(data.getMatchOdds());
-        entity.setTeamOdds(data.getTeamOdds());
-        entity.setBattingTeamName(data.getBattingTeamName());
-        entity.setOver(data.getOver());
-        entity.setScore(data.getScore());
-        entity.setCurrentBall(data.getCurrentBall());
-        entity.setRunsOnBall(data.getRunsOnBall());
-        entity.setFavTeam(data.getFavTeam());
-        entity.setSessionOdds(data.getSessionOdds());
-        entity.setCurrentRunRate(data.getCurrentRunRate());
-        entity.setFinalResultText(data.getFinalResultText());
-        entity.setUpdatedTimeStamp(System.currentTimeMillis());
+	private CricketDataEntity convertDtoToEntity(String url, CricketDataDTO data) {
+		CricketDataEntity entity = new CricketDataEntity();
+		entity.setUrl(url);
+		entity.setMatchOdds(data.getMatchOdds());
+		entity.setTeamOdds(data.getTeamOdds());
+		entity.setBattingTeamName(data.getBattingTeamName());
+		entity.setOver(data.getOver());
+		entity.setScore(data.getScore());
+		entity.setCurrentBall(data.getCurrentBall());
+		entity.setRunsOnBall(data.getRunsOnBall());
+		entity.setFavTeam(data.getFavTeam());
+		entity.setSessionOdds(data.getSessionOdds());
+		entity.setCurrentRunRate(data.getCurrentRunRate());
+		entity.setFinalResultText(data.getFinalResultText());
+
+		entity.setLastOddsUpdatedTimeStamp(data.getLastUpdated());
+
 //        entity.setOversData(data.getOversData());
-        //entity.setTossWonCountry(data.getTossWonCountry());
-        //entity.setBatOrBallSelected(data.getBatOrBallSelected());
-        //entity.setUpdatedTimeStamp());
-     // Save each OversData
-        List<OversData> oversDataList = data.getOversData();
-        if (oversDataList != null) {
-            List<OversData> savedOversDataList = new ArrayList<>();
-            for (OversData oversData : oversDataList) {
-                OversData savedOversData = oversDataRepository.save(oversData);
-                savedOversDataList.add(savedOversData);
-            }
-            entity.setOversData(savedOversDataList);
-        }
-        
-     // Update each TeamSessionData
-        Map<String, List<SessionOverData>> teamWiseSessionData = data.getTeamWiseSessionData();
-        if (teamWiseSessionData != null) {
-            List<TeamSessionData> savedTeamSessionDataList = new ArrayList<>();
-            for (Map.Entry<String, List<SessionOverData>> entry : teamWiseSessionData.entrySet()) {
-                TeamSessionData teamSessionData = teamSessionDataRepository.findByTeamNameAndCricketDataEntity(entry.getKey(), entity);
-                if (teamSessionData == null) {
-                    teamSessionData = new TeamSessionData();
-                    teamSessionData.setTeamName(entry.getKey());
-                    teamSessionData.setCricketDataEntity(entity);  // Set the reference to the parent entity
-                }
-                List<SessionOverData> sessionOverDataList = new ArrayList<>();
-                for (SessionOverData sessionOverData : entry.getValue()) {
-                    sessionOverData = SessionOverDataRepository.save(sessionOverData);  // Save the SessionOverData first
-                    sessionOverDataList.add(sessionOverData);
-                }
-                teamSessionData.setSessionOverDataList(sessionOverDataList);
-                teamSessionDataRepository.save(teamSessionData);  // Save the TeamSessionData
-                savedTeamSessionDataList.add(teamSessionData);
-            }
-            entity.setTeamWiseSessionData(savedTeamSessionDataList);
-        }
-        
-        return entity;
-    }
+		// entity.setTossWonCountry(data.getTossWonCountry());
+		// entity.setBatOrBallSelected(data.getBatOrBallSelected());
+		// entity.setUpdatedTimeStamp());
+		// Save each OversData
+		List<OversData> oversDataList = data.getOversData();
+		if (oversDataList != null) {
+			List<OversData> savedOversDataList = new ArrayList<>();
+			for (OversData oversData : oversDataList) {
+				OversData savedOversData = oversDataRepository.save(oversData);
+				savedOversDataList.add(savedOversData);
+			}
+			entity.setOversData(savedOversDataList);
+		}
+
+		// Update each TeamSessionData
+		Map<String, List<SessionOverData>> teamWiseSessionData = data.getTeamWiseSessionData();
+		if (teamWiseSessionData != null) {
+			List<TeamSessionData> savedTeamSessionDataList = new ArrayList<>();
+			for (Map.Entry<String, List<SessionOverData>> entry : teamWiseSessionData.entrySet()) {
+				TeamSessionData teamSessionData = teamSessionDataRepository
+						.findByTeamNameAndCricketDataEntity(entry.getKey(), entity);
+				if (teamSessionData == null) {
+					teamSessionData = new TeamSessionData();
+					teamSessionData.setTeamName(entry.getKey());
+					teamSessionData.setCricketDataEntity(entity); // Set the reference to the parent entity
+				}
+				List<SessionOverData> sessionOverDataList = new ArrayList<>();
+				for (SessionOverData sessionOverData : entry.getValue()) {
+					sessionOverData = SessionOverDataRepository.save(sessionOverData); // Save the SessionOverData first
+					sessionOverDataList.add(sessionOverData);
+				}
+				teamSessionData.setSessionOverDataList(sessionOverDataList);
+				teamSessionDataRepository.save(teamSessionData); // Save the TeamSessionData
+				savedTeamSessionDataList.add(teamSessionData);
+			}
+			entity.setTeamWiseSessionData(savedTeamSessionDataList);
+		}
+
+		return entity;
+	}
     
     @org.springframework.transaction.annotation.Transactional
     public CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
@@ -253,6 +256,11 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         data.setFinalResultText(entity.getFinalResultText());
         data.setOversData(entity.getOversData());
         data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
+		if (entity.getLastOddsUpdatedTimeStamp() == null) {
+			data.setLastUpdated(0l);
+		}else {
+			data.setLastUpdated(entity.getLastOddsUpdatedTimeStamp());
+		}
         //data.setTossWonCountry(entity.getTossWonCountry());
         //data.setBatOrBallSelected(entity.getBatOrBallSelected());
         //data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());

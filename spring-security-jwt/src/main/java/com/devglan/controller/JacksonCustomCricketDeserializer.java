@@ -53,7 +53,18 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
                 
                 cricketData.setBattingTeamName(teamName); // Assume you have a setter for team name
                 cricketData.setScore(score); // Reuse existing field for score
-                cricketData.setOver(Double.parseDouble(over)); // Assuming over is a string that needs conversion
+                if (over != null) {
+                    double overValue;
+                    if (over.matches(".*[a-zA-Z]+.*")) {
+                        // If the over string contains letters, extract the numeric part
+                        String overNumericPart = over.replaceAll("[^0-9]", "");
+                        overValue = Double.parseDouble(overNumericPart);
+                    } else {
+                        // Otherwise, parse it as a double directly
+                        overValue = Double.parseDouble(over);
+                    }
+                    cricketData.setOver(overValue);
+                }
             }
 
             // Extracting CRR

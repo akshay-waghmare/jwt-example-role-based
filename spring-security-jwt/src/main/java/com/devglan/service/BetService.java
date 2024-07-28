@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -49,10 +50,10 @@ public class BetService {
 
 	@Autowired
 	private BetRepository betRepository;
-	
+
 	@Autowired
 	private CricketDataRepository cricketDataRepository;
-	
+
 	@Autowired
 	private CricketDataService cricketDataService;
 	@Autowired
@@ -61,9 +62,9 @@ public class BetService {
 	private LiveMatchService liveMatchService;
 	@Autowired
 	private TransactionService transactionService;
-	
+
 	@Autowired
-    private TransactionRepository transactionRepository;
+	private TransactionRepository transactionRepository;
 
 	public Bets getBetById(Long id) throws NotFoundException {
 		return betRepository.findById(id).orElseThrow(() -> new NotFoundException());
@@ -100,7 +101,7 @@ public class BetService {
 					logger.error("Error distributing exposure and winnings for match: {}", match.getId(), e);
 				}
 			}
-			calculateTotalExposureForAllUsers();
+			// calculateTotalExposureForAllUsers();
 		} catch (Exception e) {
 			logger.error("Error in scheduled task checkMatchResults", e);
 		}
@@ -129,8 +130,8 @@ public class BetService {
 					.collect(Collectors.partitioningBy(Bets::getIsSessionBet));
 
 			// Handle session bets
-			//this should be done first as it does not need a winning team 
-			
+			// this should be done first as it does not need a winning team
+
 			if (betsBySession.containsKey(true)) {
 				processSessionBets(user, betsBySession.get(true), match);
 			}
@@ -142,18 +143,21 @@ public class BetService {
 				if (winningTeam == null) {
 					logger.warn("No winning team found for match: {}, skipping processing", match.getId());
 					CricketDataDTO cricData = cricketDataService.getCricData(match.getUrl());
-					if(cricData != null && cricData.getCurrentBall() != null ) {
+					if (cricData != null && cricData.getCurrentBall() != null) {
 						String currentBall = cricData.getCurrentBall();
 						match.setLastKnownState(currentBall);
-						liveMatchService.update(match);			
+						liveMatchService.update(match);
 					}
 					return; // No winning team found, skip processing
 				}
 				List<Bets> teamBetList = betsBySession.get(false);
+				//ths means no bet even after winning teams 
+				
+				
 				Map<String, List<Bets>> teamBets = teamBetList.stream()
 						.collect(Collectors.groupingBy(Bets::getTeamName));
 
-				// here it is calculating and reversing he exposure of this match 
+				// here it is calculating and reversing he exposure of this match
 				processMatchBets(user, teamBets, winningTeam);
 
 				for (Bets bet : teamBetList) {
@@ -172,22 +176,22 @@ public class BetService {
 					}
 
 					String matchName = extractMatchFromUrl(bet.getMatchUrl());
-					String remark =  "cricket / " + matchName + "/ match_odds" + "/ " + winningTeam;
-					
+					String remark = "cricket / " + matchName + "/ match_odds" + "/ " + winningTeam;
+
 					if (bet.getTeamName().equalsIgnoreCase(winningTeam)) {
 						// User won the bet
 						if ("back".equalsIgnoreCase(bet.getBetType())) {
 							user.setBalance(user.getBalance().add(winnings)); // Add winnings and return stake
 							bet.setStatus("Won");
-				            transactionService.createTransaction(user, "Credit", winnings, remark, "match");
+							transactionService.createTransaction(user, "Credit", winnings, remark, "match");
 							logger.debug("User: {}, bet: {} won, new balance: {}", user.getId(), bet.getBetId(),
 									user.getBalance());
-							
+
 						} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
 							user.setBalance(user.getBalance().subtract(liability)); // Subtract liability
 							bet.setStatus("Lost");
-							
-				            transactionService.createTransaction(user, "Debit", liability.negate(), remark, "match");
+
+							transactionService.createTransaction(user, "Debit", liability.negate(), remark, "match");
 							logger.debug("User: {}, bet: {} lost, new balance: {}", user.getId(), bet.getBetId(),
 									user.getBalance());
 						}
@@ -196,7 +200,7 @@ public class BetService {
 						if ("back".equalsIgnoreCase(bet.getBetType())) {
 							user.setBalance(user.getBalance().subtract(stake)); // Subtract stake
 							bet.setStatus("Lost");
-				            transactionService.createTransaction(user, "Debit", stake.negate(), remark, "match");
+							transactionService.createTransaction(user, "Debit", stake.negate(), remark, "match");
 							logger.debug("User: {}, bet: {} lost, new balance: {}", user.getId(), bet.getBetId(),
 									user.getBalance());
 						} else if ("lay".equalsIgnoreCase(bet.getBetType())) {
@@ -216,119 +220,119 @@ public class BetService {
 				if (user.getExposure().compareTo(BigDecimal.ZERO) < 0) { // Line 76
 					user.setExposure(BigDecimal.ZERO);
 				}
-				
+
 				userService.updateUser(user); // Line 78
 				logger.debug("User: {}, updated exposure: {}", user.getId(), user.getExposure());
-				
+
 				match.setDistributionDone(true);
 				liveMatchService.update(match);
 			}
-
+			
 
 		}
 
 	}
-	
+
 	private void calculateTotalExposureForAllUsers() {
-	    List<User> users = userService.findAll();
-	    for (User user : users) {
-	        BigDecimal totalExposure = BigDecimal.ZERO;
-	        List<LiveMatch> allMatches = liveMatchService.findAllMatches();
+		List<User> users = userService.findAll();
+		for (User user : users) {
+			BigDecimal totalExposure = BigDecimal.ZERO;
+			List<LiveMatch> allMatches = liveMatchService.findAllMatches();
 
-	        for (LiveMatch match : allMatches) {
-	            List<Bets> betsForMatch = betRepository.findConfirmedBetsByUserIdAndMatchUrl(user.getId(), match.getUrl());
-	            Map<Boolean, List<Bets>> betsBySession = betsForMatch.stream()
-	                .collect(Collectors.partitioningBy(Bets::getIsSessionBet));
+			for (LiveMatch match : allMatches) {
+				List<Bets> betsForMatch = betRepository.findConfirmedBetsByUserIdAndMatchUrl(user.getId(),
+						match.getUrl());
+				Map<Boolean, List<Bets>> betsBySession = betsForMatch.stream()
+						.collect(Collectors.partitioningBy(Bets::getIsSessionBet));
 
-	            // Calculate match exposure
-	            if (betsBySession.containsKey(false)) {
-	                List<Bets> matchBets = betsBySession.get(false);
-	                Map<String, List<Bets>> betsByTeam = matchBets.stream().collect(Collectors.groupingBy(Bets::getTeamName));
-	                totalExposure = totalExposure.add(calculateExposureForMatch(betsByTeam));
-	            }
+				// Calculate match exposure
+				if (betsBySession.containsKey(false)) {
+					List<Bets> matchBets = betsBySession.get(false);
+					Map<String, List<Bets>> betsByTeam = matchBets.stream()
+							.collect(Collectors.groupingBy(Bets::getTeamName));
+					totalExposure = totalExposure.add(calculateExposureForMatch(betsByTeam));
+				}
 
-	            // Calculate session bets exposure
-	            if (betsBySession.containsKey(true)) {
-	                List<Bets> sessionBets = betsBySession.get(true);
-	                totalExposure = totalExposure.add(calculateSessionExposure(sessionBets));
-	            }
-	        }
+				// Calculate session bets exposure
+				if (betsBySession.containsKey(true)) {
+					List<Bets> sessionBets = betsBySession.get(true);
+					totalExposure = totalExposure.add(calculateSessionExposure(sessionBets));
+				}
+			}
 
-	        user.setExposure(totalExposure);
-	        userService.updateUser(user);
-	        logger.info("User: {}, total exposure: {}", user.getId(), user.getExposure());
-	    }
+			user.setExposure(totalExposure);
+			userService.updateUser(user);
+			logger.info("User: {}, total exposure: {}", user.getId(), user.getExposure());
+		}
 	}
-	
+
 	private BigDecimal calculateExposureForMatch(Map<String, List<Bets>> betsByTeam) {
-	    BigDecimal totalExposure = BigDecimal.ZERO;
+		BigDecimal totalExposure = BigDecimal.ZERO;
 
-	    if (betsByTeam.size() == 1) {
-	        List<Bets> singleTeamBets = betsByTeam.values().iterator().next();
-	        totalExposure = calculateNetExposuresInWinLoseCase(singleTeamBets).abs();
-	    } else if (betsByTeam.size() > 1) {
-	        Map<String, BigDecimal> adjustedExposuresForAllTeams = adjustExposuresForAllTeams(
-	                calculateMatchExposures(betsByTeam));
+		if (betsByTeam.size() == 1) {
+			List<Bets> singleTeamBets = betsByTeam.values().iterator().next();
+			totalExposure = calculateNetExposuresInWinLoseCase(singleTeamBets).abs();
+		} else if (betsByTeam.size() > 1) {
+			Map<String, BigDecimal> adjustedExposuresForAllTeams = adjustExposuresForAllTeams(
+					calculateMatchExposures(betsByTeam));
 
-	        // Assuming there are exactly 2 teams
-	        String[] teams = adjustedExposuresForAllTeams.keySet().stream()
-	                .map(key -> key.split(" ")[0])
-	                .distinct()
-	                .toArray(String[]::new);
+			// Assuming there are exactly 2 teams
+			String[] teams = adjustedExposuresForAllTeams.keySet().stream().map(key -> key.split(" ")[0]).distinct()
+					.toArray(String[]::new);
 
-	        // Create new objects for each team's exposures
-	        Map<String, BigDecimal> team1Exposures = new HashMap<>();
-	        Map<String, BigDecimal> team2Exposures = new HashMap<>();
+			// Create new objects for each team's exposures
+			Map<String, BigDecimal> team1Exposures = new HashMap<>();
+			Map<String, BigDecimal> team2Exposures = new HashMap<>();
 
-	        for (String key : adjustedExposuresForAllTeams.keySet()) {
-	            if (key.startsWith(teams[0])) {
-	                team1Exposures.put(key.replace(teams[0] + " ", ""), adjustedExposuresForAllTeams.get(key));
-	            } else if (key.startsWith(teams[1])) {
-	                team2Exposures.put(key.replace(teams[1] + " ", ""), adjustedExposuresForAllTeams.get(key));
-	            }
-	        }
+			for (String key : adjustedExposuresForAllTeams.keySet()) {
+				if (key.startsWith(teams[0])) {
+					team1Exposures.put(key.replace(teams[0] + " ", ""), adjustedExposuresForAllTeams.get(key));
+				} else if (key.startsWith(teams[1])) {
+					team2Exposures.put(key.replace(teams[1] + " ", ""), adjustedExposuresForAllTeams.get(key));
+				}
+			}
 
-	        // Determine exposure based on conditions
-	        totalExposure = totalExposure.add(calculateTeamExposure(team1Exposures));
+			// Determine exposure based on conditions
+			totalExposure = totalExposure.add(calculateTeamExposure(team1Exposures));
 //	        totalExposure = totalExposure.add(calculateTeamExposure(team2Exposures));
-	    }
-	    return totalExposure;
+		}
+		return totalExposure;
 	}
 
 	private BigDecimal calculateTeamExposure(Map<String, BigDecimal> teamExposures) {
-	    BigDecimal winExposure = teamExposures.getOrDefault("Adjusted Win", BigDecimal.ZERO);
-	    BigDecimal loseExposure = teamExposures.getOrDefault("Adjusted Lose", BigDecimal.ZERO);
+		BigDecimal winExposure = teamExposures.getOrDefault("Adjusted Win", BigDecimal.ZERO);
+		BigDecimal loseExposure = teamExposures.getOrDefault("Adjusted Lose", BigDecimal.ZERO);
 
-	    if (winExposure.compareTo(BigDecimal.ZERO) < 0 && loseExposure.compareTo(BigDecimal.ZERO) < 0) {
-	        // Both are negative, consider the more negative one
-	        return winExposure.min(loseExposure).abs();
-	    } else if (winExposure.compareTo(BigDecimal.ZERO) < 0 || loseExposure.compareTo(BigDecimal.ZERO) < 0) {
-	        // Either win or lose is negative
-	        return winExposure.min(loseExposure).abs();
-	    } else {
-	        // Both are positive
-	        return BigDecimal.ZERO;
-	    }
+		if (winExposure.compareTo(BigDecimal.ZERO) < 0 && loseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Both are negative, consider the more negative one
+			return winExposure.min(loseExposure).abs();
+		} else if (winExposure.compareTo(BigDecimal.ZERO) < 0 || loseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			// Either win or lose is negative
+			return winExposure.min(loseExposure).abs();
+		} else {
+			// Both are positive
+			return BigDecimal.ZERO;
+		}
 	}
-	
+
 	private String extractMatchFromUrl(String url) {
-	    return url.replace("-", " ");
+		return url.replace("-", " ");
 	}
-	
+
 	@org.springframework.transaction.annotation.Transactional
 	public void processSessionBets(User user, List<Bets> sessionBets, LiveMatch match) {
 
-		// reversal of exposure
-		/*
-		 * BigDecimal calculateSessionExposure = calculateSessionExposure(sessionBets);
-		 * BigDecimal newExposure =
-		 * user.getExposure().subtract(calculateSessionExposure);
-		 * user.setExposure(newExposure.compareTo(BigDecimal.ZERO) > 0 ? newExposure :
-		 * BigDecimal.ZERO);
-		 */
+		
+		  // reversal of exposure
+		  
+		  BigDecimal calculateSessionExposure = calculateSessionExposure(sessionBets);
+		  BigDecimal newExposure =
+		  user.getExposure().subtract(calculateSessionExposure);
+		  user.setExposure(newExposure.compareTo(BigDecimal.ZERO) > 0 ? newExposure :
+		  BigDecimal.ZERO);
+		 
 		// win / loss session calculation
 
-		
 		for (Bets bet : sessionBets) {
 			logger.debug("Processing session bet: {} for user: {}", bet.getBetId(), user.getId());
 
@@ -348,13 +352,13 @@ public class BetService {
 				if ("yes".equalsIgnoreCase(bet.getBetType())) {
 					user.setBalance(user.getBalance().add(stake)); // Add winnings and return stake
 					bet.setStatus("Won");
-		            transactionService.createTransaction(user, "Credit", stake, remark, "Betting");
+					transactionService.createTransaction(user, "Credit", stake, remark, "Betting");
 					logger.debug("User: {}, session bet: {} won, new balance: {}", user.getId(), bet.getBetId(),
 							user.getBalance());
 				} else if ("no".equalsIgnoreCase(bet.getBetType())) {
 					user.setBalance(user.getBalance().add(stake)); // Subtract liability
 					bet.setStatus("Won");
-		            transactionService.createTransaction(user, "Credit", stake, remark, "Betting");
+					transactionService.createTransaction(user, "Credit", stake, remark, "Betting");
 					logger.debug("User: {}, session bet: {} won, new balance: {}", user.getId(), bet.getBetId(),
 							user.getBalance());
 				}
@@ -363,19 +367,18 @@ public class BetService {
 				if ("yes".equalsIgnoreCase(bet.getBetType())) {
 					user.setBalance(user.getBalance().subtract(stake)); // Subtract stake
 					bet.setStatus("Lost");
-		            transactionService.createTransaction(user, "Debit", stake.negate(), remark, "Betting");
+					transactionService.createTransaction(user, "Debit", stake.negate(), remark, "Betting");
 					logger.debug("User: {}, session bet: {} lost, new balance: {}", user.getId(), bet.getBetId(),
 							user.getBalance());
 				} else if ("no".equalsIgnoreCase(bet.getBetType())) {
 					user.setBalance(user.getBalance().subtract(stake)); // Return stake
 					bet.setStatus("Lost");
-		            transactionService.createTransaction(user, "Debit", stake.negate(), remark, "Betting");
+					transactionService.createTransaction(user, "Debit", stake.negate(), remark, "Betting");
 					logger.debug("User: {}, session bet: {} lost, new balance: {}", user.getId(), bet.getBetId(),
 							user.getBalance());
 				}
 			}
 
-			
 			userService.updateUser(user);
 			cricketDataService.notifyBetStatus(betRepository.save(bet));
 			logger.debug("Session bet: {}, updated status: {}, user: {}, updated balance: {}", bet.getBetId(),
@@ -389,28 +392,28 @@ public class BetService {
 		CricketDataDTO lastUpdatedData = cricketDataService.getLastUpdatedData(appendBaseUrl(match.getUrl()));
 		String battingTeamName = lastUpdatedData.getBattingTeamName();
 		String normalizedSessionName = normalizeSessionName(sessionName);
-		//here 
-		//Detail formatter error:
-		//An exception occurred: org.hibernate.LazyInitializationException
+		// here
+		// Detail formatter error:
+		// An exception occurred: org.hibernate.LazyInitializationException
 		Map<String, List<SessionOverData>> teamWiseSessionData = lastUpdatedData.getTeamWiseSessionData();
 
 		// Normalize the batting team name to match the format in teamWiseSessionData
 		String normalizedBattingTeamName = normalizeTeamName(battingTeamName);
-        
+
 		Map<String, List<SessionOverData>> normalizedTeamWiseSessionData = new HashMap<>();
 		for (Map.Entry<String, List<SessionOverData>> entry : teamWiseSessionData.entrySet()) {
-		    String normalizedKey = normalizeTeamName(entry.getKey());
-		    normalizedTeamWiseSessionData.put(normalizedKey, entry.getValue());
+			String normalizedKey = normalizeTeamName(entry.getKey());
+			normalizedTeamWiseSessionData.put(normalizedKey, entry.getValue());
 		}
-		
+
 		// Now use normalizedTeamWiseSessionData instead of teamWiseSessionData
 		if (normalizedTeamWiseSessionData.containsKey(normalizedBattingTeamName)) {
-		    List<SessionOverData> sessionOverDataList = normalizedTeamWiseSessionData.get(normalizedBattingTeamName);
-		    for (SessionOverData sessionData : sessionOverDataList) {
-		        if (sessionData.getName().equalsIgnoreCase(normalizedSessionName)) {
-		            return sessionData;
-		        }
-		    }
+			List<SessionOverData> sessionOverDataList = normalizedTeamWiseSessionData.get(normalizedBattingTeamName);
+			for (SessionOverData sessionData : sessionOverDataList) {
+				if (sessionData.getName().equalsIgnoreCase(normalizedSessionName)) {
+					return sessionData;
+				}
+			}
 		}
 
 		return null;
@@ -460,6 +463,7 @@ public class BetService {
 				if (exposure.compareTo(BigDecimal.ZERO) < 0) {
 					overAllMaxExposure = exposure.min(overAllMaxExposure);
 				}
+				
 
 			}
 
@@ -472,83 +476,83 @@ public class BetService {
 	@Async("taskExecutor")
 	@Transactional
 	public CompletableFuture<ResponseEntity<?>> checkAndConfirmBet(Bets bet, String currentUsername) {
-	    try {
-	        // Fetch latest odds for the event and ensure collections are initialized
-	    	Thread.sleep(5000);
-	        CricketDataDTO cdo = new CricketDataDTO();
-	        CricketDataDTO latestOdds = fetchLatestOdds(bet, cdo);
-	        if (latestOdds == null) {
-	            cancelBet(bet);
-	            Map<String, Object> response = new HashMap<>();
-	            response.put("message", "Bet cancelled due to no odds available");
-	            return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(response));
-	        }
+		try {
+			// Fetch latest odds for the event and ensure collections are initialized
+			Thread.sleep(4000);
+			CricketDataDTO cdo = new CricketDataDTO();
+			CricketDataDTO latestOdds = fetchLatestOdds(bet, cdo);
+			if (latestOdds == null) {
+				cancelBet(bet);
+				Map<String, Object> response = new HashMap<>();
+				response.put("message", "Bet cancelled due to no odds available");
+				return CompletableFuture.completedFuture(ResponseEntity.badRequest().body(response));
+			}
 
-	        long currentTimeMillis = System.currentTimeMillis();
-	        long oddsTimestamp = latestOdds.getLastUpdated();
-	        if ((currentTimeMillis - oddsTimestamp) > 5000) { // Check if the odds are older than 5 seconds
-				
-				  cancelBet(bet); Map<String, Object> response = new HashMap<>();
-				  response.put("message", "Bet cancelled due to old odds"); return
-				  CompletableFuture.completedFuture(ResponseEntity.badRequest().body(response));
-				 
-				 
-	        }
+			long currentTimeMillis = System.currentTimeMillis();
+			long oddsTimestamp = latestOdds.getLastUpdated();
 
-	        // Ensure collections are fully initialized
-	        latestOdds.getMatchOdds().size(); // Initialize matchOdds collection
-	        latestOdds.getTeamWiseSessionData().size(); // Initialize teamWiseSessionData collection
+			
+			  if ((currentTimeMillis - oddsTimestamp) > 20000) { // Check if the odds are older than 5 seconds
+			  
+			  cancelBet(bet); Map<String, Object> response = new HashMap<>();
+			  response.put("message", "Bet cancelled due to old odds"); return
+			  CompletableFuture.completedFuture(ResponseEntity.badRequest().body(response));
+			  
+			  }
+			 
 
-	        // Now pass the fully initialized latestOdds to supplyAsync
-	        
-	        return CompletableFuture.supplyAsync(() -> {
-	            try {
-	                // 5-second delay
+			// Ensure collections are fully initialized
+			latestOdds.getMatchOdds().size(); // Initialize matchOdds collection
+			latestOdds.getTeamWiseSessionData().size(); // Initialize teamWiseSessionData collection
 
-	                if (bet.getIsSessionBet() != null && bet.getIsSessionBet()) {
-	                    handleSessionBet(bet, currentUsername, latestOdds);
-	                    Map<String, Object> response = new HashMap<>();
-	                    response.put("message", "Session bet handled successfully");
-	                    response.put("bet", bet);
-	                    return ResponseEntity.ok(response);
-	                } else {
-	                    List<MatchOdds> matchOdds = latestOdds.getMatchOdds();
-	                    Optional<MatchOdds> matchingOdds = Optional.empty();
-	                    if (matchOdds != null) {
-	                        matchingOdds = matchOdds.stream()
-	                                .filter(team -> bet.getTeamName().equals(team.getTeamName())).findFirst();
-	                    }
+			// Now pass the fully initialized latestOdds to supplyAsync
 
-	                    if (!matchingOdds.isPresent()) {
-	                        // This is a one-day match scenario
-	                        handleOneDayMatch(bet, currentUsername, latestOdds);
-	                        Map<String, Object> response = new HashMap<>();
-	                        response.put("message", "One day match handled successfully");
-	                        response.put("bet", bet);
-	                        return ResponseEntity.ok(response);
-	                    } else {
-	                        // This is the test match scenario
-	                        handleMatchWithTestOdds(bet, currentUsername, latestOdds);
-	                        Map<String, Object> response = new HashMap<>();
-	                        response.put("message", "Test match handled successfully");
-	                        response.put("bet", bet);
-	                        return ResponseEntity.ok(response);
-	                    }
-	                }
+			return CompletableFuture.supplyAsync(() -> {
+				try {
+					// 5-second delay
 
-	            }
-	            catch (Exception e) {
-	                // Handle any other exceptions that may occur during the asynchronous processing
-	                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                        .body(Collections.singletonMap("message", "Error during bet processing"));
-	            }
-	        });
-	    } catch (Exception e) {
-	        // Handle any exception that may occur during the initial transaction
-	        return CompletableFuture.completedFuture(
-	                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                        .body(Collections.singletonMap("message", "Error during bet processing")));
-	    }
+					if (bet.getIsSessionBet() != null && bet.getIsSessionBet()) {
+						handleSessionBet(bet, currentUsername, latestOdds);
+						Map<String, Object> response = new HashMap<>();
+						response.put("message", "Session bet handled successfully");
+						response.put("bet", bet);
+						return ResponseEntity.ok(response);
+					} else {
+						List<MatchOdds> matchOdds = latestOdds.getMatchOdds();
+						Optional<MatchOdds> matchingOdds = Optional.empty();
+						if (matchOdds != null) {
+							matchingOdds = matchOdds.stream()
+									.filter(team -> bet.getTeamName().equals(team.getTeamName())).findFirst();
+						}
+
+						if (!matchingOdds.isPresent()) {
+							// This is a one-day match scenario
+							handleOneDayMatch(bet, currentUsername, latestOdds);
+							Map<String, Object> response = new HashMap<>();
+							response.put("message", "One day match handled successfully");
+							response.put("bet", bet);
+							return ResponseEntity.ok(response);
+						} else {
+							// This is the test match scenario
+							handleMatchWithTestOdds(bet, currentUsername, latestOdds);
+							Map<String, Object> response = new HashMap<>();
+							response.put("message", "Test match handled successfully");
+							response.put("bet", bet);
+							return ResponseEntity.ok(response);
+						}
+					}
+
+				} catch (Exception e) {
+					// Handle any other exceptions that may occur during the asynchronous processing
+					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(Collections.singletonMap("message", "Error during bet processing"));
+				}
+			});
+		} catch (Exception e) {
+			// Handle any exception that may occur during the initial transaction
+			return CompletableFuture.completedFuture(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Collections.singletonMap("message", "Error during bet processing")));
+		}
 	}
 
 	private void handleMatchWithTestOdds(Bets bet, String currentUsername, CricketDataDTO latestOdds) {
@@ -637,8 +641,7 @@ public class BetService {
 			fetchedBackOdd = fetchedBackOdd.add(one);
 			BigDecimal newBackOdds = BigDecimal.valueOf(100).divide(fetchedBackOdd).add(BigDecimal.ONE);
 			bet.setOdd(newBackOdds);
-			
-			
+
 		}
 		// Scenario 3: Bet is lay on team 1 and favorite team is team 2 -> reject bet
 		// Scenario 4: Bet is lay on team 2 and favorite team is team 1 -> reject bet
@@ -653,7 +656,7 @@ public class BetService {
 					RoundingMode.HALF_UP);
 			if (betOddAdjusted.compareTo(fetchedBackOdd) <= 0) {
 				confirmBet = true;
-				if (betOddAdjusted.compareTo(fetchedBackOdd) < 0) {					
+				if (betOddAdjusted.compareTo(fetchedBackOdd) < 0) {
 					bet.setOdd(fetchedBackOdd.subtract(one).divide(BigDecimal.valueOf(100)).add(BigDecimal.ONE));
 				}
 			}
@@ -663,7 +666,7 @@ public class BetService {
 					RoundingMode.HALF_UP);
 			if (betOddAdjusted.compareTo(fetchedLayOdd) >= 0) {
 				confirmBet = true;
-				if (betOddAdjusted.compareTo(fetchedLayOdd) > 0) {					
+				if (betOddAdjusted.compareTo(fetchedLayOdd) > 0) {
 					bet.setOdd(fetchedLayOdd.add(one).divide(BigDecimal.valueOf(100)).add(BigDecimal.ONE));
 				}
 			}
@@ -870,10 +873,10 @@ public class BetService {
 		if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
 			// Both are negative, compare to find the more negative value
 			maxPrvExposure = prvWinExposure.min(prvLoseExposure);
-		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0) {
+		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) > 0) {
 			// Only prvWinExposure is negative
 			maxPrvExposure = prvWinExposure;
-		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0 && prvWinExposure.compareTo(BigDecimal.ZERO) > 0) {
 			// Only prvLoseExposure is negative
 			maxPrvExposure = prvLoseExposure;
 		}
@@ -894,15 +897,15 @@ public class BetService {
 			// in both win and lose scenarios, the user will incur a loss. The goal is to
 			// identify which scenario leads to a greater loss.
 			updtMaxExposure = updtWinExposure.min(updtLoseExposure);
-		} else if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0) {
+		} else if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0 && updtLoseExposure.compareTo(BigDecimal.ZERO) > 0) {
 			// Only prvWinExposure is negative
 			updtMaxExposure = updtWinExposure;
-		} else if (updtLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
+		} else if (updtLoseExposure.compareTo(BigDecimal.ZERO) < 0 && updtWinExposure.compareTo(BigDecimal.ZERO) > 0) {
 			// Only prvLoseExposure is negative
 			updtMaxExposure = updtLoseExposure;
 		} else {
 			// Both are positive or zero, indicating no potential loss
-			BigDecimal updatedExposureDiff = updtMaxExposure.subtract(maxPrvExposure.abs());
+			BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
 			BigDecimal latestExposure = user.getExposure().subtract(updatedExposureDiff.abs());
 			user.setExposure(latestExposure);
 			User updateUser = userService.updateUser(user);
@@ -956,10 +959,20 @@ public class BetService {
 		}
 	}
 
-	private void confirmOrCancelBetAndUpdateUser(User user, Bets bet, BigDecimal totalPotentialExposure) {
+	private void confirmOrCancelBetAndUpdateUser(User user, Bets bet, BigDecimal previousAndCurrentExposureDiff) {
+		
+		BigDecimal totalPotentialExposure = BigDecimal.ZERO;
+		if (previousAndCurrentExposureDiff.compareTo(BigDecimal.ZERO) >= 0) {
+			// exposure has reduced
+			totalPotentialExposure = user.getExposure().add(previousAndCurrentExposureDiff.abs());
+		} else {
+			// exposure has increased
+			totalPotentialExposure = user.getExposure().subtract(previousAndCurrentExposureDiff.abs());
+		}
+		
 		// not adding the absolte value of totalPotentialExposure as it can also be
 		// negative which means the exposure decreased
-		BigDecimal latestExposure = user.getExposure().add(totalPotentialExposure);
+		BigDecimal latestExposure = totalPotentialExposure;
 		if (user.getBalance().compareTo(latestExposure) >= 0) {
 			user.setExposure(latestExposure);
 			User updateUser = userService.updateUser(user);
@@ -989,8 +1002,10 @@ public class BetService {
 
 	private boolean areBetsEqual(Bets bet, Bets existingBet) {
 		return bet.getBetType().equals(existingBet.getBetType())
-				&& bet.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP).compareTo(existingBet.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP)) == 0
-				&& bet.getOdd().setScale(2, BigDecimal.ROUND_HALF_UP).compareTo(existingBet.getOdd().setScale(2, BigDecimal.ROUND_HALF_UP)) == 0
+				&& bet.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP)
+						.compareTo(existingBet.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP)) == 0
+				&& bet.getOdd().setScale(2, BigDecimal.ROUND_HALF_UP)
+						.compareTo(existingBet.getOdd().setScale(2, BigDecimal.ROUND_HALF_UP)) == 0
 				&& bet.getTeamName().equals(existingBet.getTeamName())
 				&& bet.getBetId().compareTo(existingBet.getBetId()) == 0
 				&& bet.getUser().getId() == (existingBet.getUser().getId());
@@ -1005,23 +1020,26 @@ public class BetService {
 	public List<Bets> getBetsForMatchForUser(String matchUrl, long userId) {
 		return betRepository.findByMatchUrlAndUserId(matchUrl, userId);
 	}
-	
+
 	public List<Bets> getBetsForMatch(String matchUrl) {
 		return betRepository.findByMatchUrlContainingAndConfirmed(matchUrl);
 	}
 
-	public Map<String, Map<String, BigDecimal>> calculateMatchExposures(Map<String, List<Bets>> betsByTeam) {
-		Map<String, Map<String, BigDecimal>> matchExposures = new HashMap<>();
+	public synchronized  Map<String, Map<String, BigDecimal>> calculateMatchExposures(Map<String, List<Bets>> betsByTeam) {
+		Map<String, Map<String, BigDecimal>> matchExposures = new ConcurrentHashMap<>();
 
-		betsByTeam.forEach((teamName, teamBets) -> {
-			Map<String, BigDecimal> teamExposures = calculateExposuresForTeam(teamBets);
-			matchExposures.put(teamName, teamExposures);
-		});
+	    betsByTeam.forEach((teamName, teamBets) -> {
+	        List<Bets> confirmedBets = teamBets.stream()
+	                                            .filter(bet -> "Confirmed".equalsIgnoreCase(bet.getStatus()))
+	                                            .collect(Collectors.toList());
+	        Map<String, BigDecimal> teamExposures = calculateExposuresForTeam(confirmedBets);
+	        matchExposures.put(teamName, teamExposures);
+	    });
 
-		return matchExposures;
+	    return matchExposures;
 	}
 
-	private Map<String, BigDecimal> calculateExposuresForTeam(List<Bets> teamBets) {
+	private synchronized  Map<String, BigDecimal> calculateExposuresForTeam(List<Bets> teamBets) {
 
 		BigDecimal netLayStake = BigDecimal.ZERO;
 		BigDecimal netBackStake = BigDecimal.ZERO;
@@ -1050,7 +1068,7 @@ public class BetService {
 																			// liabilities
 		BigDecimal loseExposure = netLayStake.subtract(netBackStake);
 
-		Map<String, BigDecimal> winLoseExposureMap = new HashMap<String, BigDecimal>();
+		Map<String, BigDecimal> winLoseExposureMap = new ConcurrentHashMap<String, BigDecimal>();
 
 		winLoseExposureMap.put("WinExposure", winExposure);
 		winLoseExposureMap.put("LoseExposure", loseExposure);
@@ -1112,74 +1130,69 @@ public class BetService {
 	}
 
 	public Map<String, ProfitLossDTO> calculateOverallProfitLoss(Long userId, Date startDate, Date endDate) {
-	    List<Transaction> transactions = transactionRepository.findTransactionsBetweenDates(startDate, endDate, userId);
+		List<Transaction> transactions = transactionRepository.findTransactionsBetweenDates(startDate, endDate, userId);
 
-	    // Group transactions by match key
-	    Map<String, List<Transaction>> groupedTransactions = transactions.stream()
-	            .collect(Collectors.groupingBy(transaction -> extractMatchKey(transaction.getRemark())));
+		// Group transactions by match key
+		Map<String, List<Transaction>> groupedTransactions = transactions.stream()
+				.collect(Collectors.groupingBy(transaction -> extractMatchKey(transaction.getRemark())));
 
-	    Map<String, ProfitLossDTO> profitLossMap = new HashMap<>();
+		Map<String, ProfitLossDTO> profitLossMap = new HashMap<>();
 
-	    for (Map.Entry<String, List<Transaction>> entry : groupedTransactions.entrySet()) {
-	        String matchKey = entry.getKey();
-	        List<Transaction> matchTransactions = entry.getValue();
+		for (Map.Entry<String, List<Transaction>> entry : groupedTransactions.entrySet()) {
+			String matchKey = entry.getKey();
+			List<Transaction> matchTransactions = entry.getValue();
 
-	        // Sort transactions by date
-	        matchTransactions.sort(Comparator.comparing(Transaction::getTransactionDate));
+			// Sort transactions by date
+			matchTransactions.sort(Comparator.comparing(Transaction::getTransactionDate));
 
-	        BigDecimal totalProfit = BigDecimal.ZERO;
-	        BigDecimal totalLoss = BigDecimal.ZERO;
-	        BigDecimal initialBalance = BigDecimal.ZERO;
-	        BigDecimal finalBalance = BigDecimal.ZERO;
-	        String remark = "";
-	        String status = "";
-	        Date transactionDate = new Date();
+			BigDecimal totalProfit = BigDecimal.ZERO;
+			BigDecimal totalLoss = BigDecimal.ZERO;
+			BigDecimal initialBalance = BigDecimal.ZERO;
+			BigDecimal finalBalance = BigDecimal.ZERO;
+			String remark = "";
+			String status = "";
+			Date transactionDate = new Date();
 
-	        if (!matchTransactions.isEmpty()) {
-	            initialBalance = matchTransactions.get(0).getBalanceAfterTransaction().subtract(matchTransactions.get(0).getAmount());
-	            finalBalance = matchTransactions.get(matchTransactions.size() - 1).getBalanceAfterTransaction();
-	        }
+			if (!matchTransactions.isEmpty()) {
+				initialBalance = matchTransactions.get(0).getBalanceAfterTransaction()
+						.subtract(matchTransactions.get(0).getAmount());
+				finalBalance = matchTransactions.get(matchTransactions.size() - 1).getBalanceAfterTransaction();
+			}
 
-	        for (Transaction transaction : matchTransactions) {
-	            remark = transaction.getRemark();
-	            status = transaction.getStatus();
-	            transactionDate = transaction.getTransactionDate();
+			for (Transaction transaction : matchTransactions) {
+				remark = transaction.getRemark();
+				status = transaction.getStatus();
+				transactionDate = transaction.getTransactionDate();
 
-	            BigDecimal amount = transaction.getAmount();
+				BigDecimal amount = transaction.getAmount();
 
-	            if ("Credit".equalsIgnoreCase(transaction.getTransactionType())) {
-	                totalProfit = totalProfit.add(amount);
-	            } else {
-	                totalLoss = totalLoss.add(amount);
-	            }
-	        }
+				if ("Credit".equalsIgnoreCase(transaction.getTransactionType())) {
+					totalProfit = totalProfit.add(amount);
+				} else {
+					totalLoss = totalLoss.add(amount);
+				}
+			}
 
-	        // Calculate net profit or loss
-	        BigDecimal netResult = finalBalance.subtract(initialBalance);
-	        String transactionType = netResult.compareTo(BigDecimal.ZERO) > 0 ? "Credit" : "Debit";
+			// Calculate net profit or loss
+			BigDecimal netResult = finalBalance.subtract(initialBalance);
+			String transactionType = netResult.compareTo(BigDecimal.ZERO) > 0 ? "Credit" : "Debit";
 
-	        // Create the ProfitLossDTO
-	        ProfitLossDTO profitLossDTO = new ProfitLossDTO(
-	                netResult,
-	                finalBalance,
-	                "cricket / " + matchKey,
-	                status,
-	                transactionDate,
-	                transactionType
-	        );
+			// Create the ProfitLossDTO
+			ProfitLossDTO profitLossDTO = new ProfitLossDTO(netResult, finalBalance, "cricket / " + matchKey, status,
+					transactionDate, transactionType);
 
-	        profitLossMap.put(matchKey, profitLossDTO);
-	    }
+			profitLossMap.put(matchKey, profitLossDTO);
+		}
 
-	    return profitLossMap;
+		return profitLossMap;
 	}
-	
+
 	private String extractMatchKey(String remark) {
-        // Implement your logic to extract the match key from the remark
-        // For example, you might split the remark by "/" and take the relevant part
-        String[] parts = remark.split("/");
-        return parts[parts.length - 3]; // Adjust this based on your actual remark format
-    }
+		// Implement your logic to extract the match key from the remark
+		// For example, you might split the remark by "/" and take the relevant part
+		String[] parts = remark.split("/");
+		return parts[parts.length - 3]; // Adjust this based on your actual remark format
+	}
 
 	private String getWinningTeamForMatch(String matchUrl) {
 		// Logic to retrieve the winning team for the match based on the match URL
@@ -1281,7 +1294,7 @@ public class BetService {
 			}
 			userService.updateUser(user);
 			bet.setStatus("Confirmed");
-			
+
 			cricketDataService.notifyBetStatus(betRepository.save(bet));
 		} else {
 
@@ -1299,14 +1312,14 @@ public class BetService {
 		List<Bets> yesBets = existingBetsCopy.stream().map(this::deepCopyBet)
 				.filter(b -> "yes".equalsIgnoreCase(b.getBetType())).collect(Collectors.toList());
 
-		List<Bets> noBets = existingBetsCopy.stream().map(this::deepCopyBet).filter(b -> "no".equalsIgnoreCase(b.getBetType()))
-				.collect(Collectors.toList());
+		List<Bets> noBets = existingBetsCopy.stream().map(this::deepCopyBet)
+				.filter(b -> "no".equalsIgnoreCase(b.getBetType())).collect(Collectors.toList());
 
 		// Calculate previous exposure considering overlapping bets
 		BigDecimal previousExposure = calculateAdustedSessionExposure(yesBets, noBets);
 		return previousExposure;
 	}
-	
+
 	public ExposureResult calculateSessionExposureExtended(List<Bets> existingBets) {
 		// Create deep copies of existing bets
 		List<Bets> existingBetsCopy = existingBets.stream().map(this::deepCopyBet).collect(Collectors.toList());
@@ -1315,42 +1328,45 @@ public class BetService {
 		List<Bets> yesBets = existingBetsCopy.stream().map(this::deepCopyBet)
 				.filter(b -> "yes".equalsIgnoreCase(b.getBetType())).collect(Collectors.toList());
 
-		List<Bets> noBets = existingBetsCopy.stream().map(this::deepCopyBet).filter(b -> "no".equalsIgnoreCase(b.getBetType()))
-				.collect(Collectors.toList());
+		List<Bets> noBets = existingBetsCopy.stream().map(this::deepCopyBet)
+				.filter(b -> "no".equalsIgnoreCase(b.getBetType())).collect(Collectors.toList());
 
 		// Calculate previous exposure considering overlapping bets
 		ExposureResult previousExposure = calculateAdjustedSessionExposureExtended(yesBets, noBets);
 		return previousExposure;
 	}
-	
+
 	public ExposureResult calculateAdjustedSessionExposureExtended(List<Bets> yesBets, List<Bets> noBets) {
-	    List<Bets> sortedYesBets = yesBets.stream().map(this::deepCopyBet)
-	            .sorted(Comparator.comparing(Bets::getOdd)).collect(Collectors.toList());
+		List<Bets> sortedYesBets = yesBets.stream().map(this::deepCopyBet).sorted(Comparator.comparing(Bets::getOdd))
+				.collect(Collectors.toList());
 
-	    List<Bets> sortedNoBets = noBets.stream().map(this::deepCopyBet)
-	            .sorted(Comparator.comparing(Bets::getOdd).reversed()).collect(Collectors.toList());
+		List<Bets> sortedNoBets = noBets.stream().map(this::deepCopyBet)
+				.sorted(Comparator.comparing(Bets::getOdd).reversed()).collect(Collectors.toList());
 
-	    BigDecimal adjustedYesExposure = sortedYesBets.stream().map(Bets::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-	    BigDecimal adjustedNoExposure = sortedNoBets.stream().map(Bets::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal adjustedYesExposure = sortedYesBets.stream().map(Bets::getAmount).reduce(BigDecimal.ZERO,
+				BigDecimal::add);
+		BigDecimal adjustedNoExposure = sortedNoBets.stream().map(Bets::getAmount).reduce(BigDecimal.ZERO,
+				BigDecimal::add);
 
-	    for (Bets yesBet : sortedYesBets) {
-	        for (Bets noBet : sortedNoBets) {
-	            if (yesBet.getAmount().compareTo(BigDecimal.ZERO) > 0 && noBet.getAmount().compareTo(BigDecimal.ZERO) > 0) {
-	                if (yesBet.getOdd().compareTo(noBet.getOdd()) < 0) {
-	                    BigDecimal arbitrageAmount = yesBet.getAmount().min(noBet.getAmount());
-	                    adjustedYesExposure = adjustedYesExposure.subtract(arbitrageAmount);
-	                    adjustedNoExposure = adjustedNoExposure.subtract(arbitrageAmount);
+		for (Bets yesBet : sortedYesBets) {
+			for (Bets noBet : sortedNoBets) {
+				if (yesBet.getAmount().compareTo(BigDecimal.ZERO) > 0
+						&& noBet.getAmount().compareTo(BigDecimal.ZERO) > 0) {
+					if (yesBet.getOdd().compareTo(noBet.getOdd()) < 0) {
+						BigDecimal arbitrageAmount = yesBet.getAmount().min(noBet.getAmount());
+						adjustedYesExposure = adjustedYesExposure.subtract(arbitrageAmount);
+						adjustedNoExposure = adjustedNoExposure.subtract(arbitrageAmount);
 
-	                    yesBet.setAmount(yesBet.getAmount().subtract(arbitrageAmount));
-	                    noBet.setAmount(noBet.getAmount().subtract(arbitrageAmount));
-	                }
-	            }
-	        }
-	    }
+						yesBet.setAmount(yesBet.getAmount().subtract(arbitrageAmount));
+						noBet.setAmount(noBet.getAmount().subtract(arbitrageAmount));
+					}
+				}
+			}
+		}
 
-	    String higherExposure = adjustedYesExposure.compareTo(adjustedNoExposure) > 0 ? "Yes" : "No";
+		String higherExposure = adjustedYesExposure.compareTo(adjustedNoExposure) > 0 ? "Yes" : "No";
 
-	    return new ExposureResult(adjustedYesExposure, adjustedNoExposure, higherExposure);
+		return new ExposureResult(adjustedYesExposure, adjustedNoExposure, higherExposure);
 	}
 
 	private boolean isBetWinning(Bets bet, SessionOverData sessionResult) {
@@ -1367,8 +1383,8 @@ public class BetService {
 		List<Bets> sortedYesBets = yesBets.stream().map(this::deepCopyBet).sorted(Comparator.comparing(Bets::getOdd))
 				.collect(Collectors.toList());
 
-		List<Bets> sortedNoBets = noBets.stream().map(this::deepCopyBet).sorted(Comparator.comparing(Bets::getOdd).reversed())
-				.collect(Collectors.toList());
+		List<Bets> sortedNoBets = noBets.stream().map(this::deepCopyBet)
+				.sorted(Comparator.comparing(Bets::getOdd).reversed()).collect(Collectors.toList());
 
 		BigDecimal adjustedYesExposure = sortedYesBets.stream().map(Bets::getAmount).reduce(BigDecimal.ZERO,
 				BigDecimal::add);

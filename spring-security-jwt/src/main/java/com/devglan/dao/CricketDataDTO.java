@@ -63,6 +63,7 @@ public class CricketDataDTO {
 	private String toss_won_country;
 	private String bat_or_ball_selected;
 	private long updatedTimeStamp;
+	private long lastOddsUpdated;
 
 	/*
 	 * public Map<String, List<String>> getTeam_player_info() { return
@@ -161,13 +162,13 @@ public class CricketDataDTO {
 		this.url = url;
 	}
 
-	public void setLastUpdated(long currentTimeMillis) {
-		this.updatedTimeStamp = currentTimeMillis;
+	public void setLastUpdated(Long currentTimeMillis) {
+		this.lastOddsUpdated = currentTimeMillis;
 		
 	}
 	
-	public long getLastUpdated() {
-		return this.updatedTimeStamp;
+	public Long getLastUpdated() {
+		return this.lastOddsUpdated;
 	}
 
 	public List<MatchOdds> getMatchOdds() {

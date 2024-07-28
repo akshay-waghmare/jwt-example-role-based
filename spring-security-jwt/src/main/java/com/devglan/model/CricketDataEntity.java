@@ -58,7 +58,10 @@ public class CricketDataEntity {
     private String batOrBallSelected;
     
     @Column(name = "UPDATED_TIME_STAMP")
-    private long updatedTimeStamp;
+    private Long updatedTimeStamp;
+    
+    @Column(name = "LAST_ODDS_UPDATED_TIME_STAMP")
+    private Long lastOddsUpdatedTimeStamp;
 
     // Getters and setters
 
@@ -66,7 +69,25 @@ public class CricketDataEntity {
         return url;
     }
 
-    public void setUrl(String url) {
+   
+
+	public Long getLastOddsUpdatedTimeStamp() {
+		return lastOddsUpdatedTimeStamp;
+	}
+
+
+
+	public void setLastOddsUpdatedTimeStamp(Long lastOddsUpdatedTimeStamp) {
+		if (lastOddsUpdatedTimeStamp == null) {
+            this.lastOddsUpdatedTimeStamp = 0L;
+        } else {
+            this.lastOddsUpdatedTimeStamp = lastOddsUpdatedTimeStamp;
+        }
+	}
+
+
+
+	public void setUrl(String url) {
         this.url = url;
     }
 
@@ -196,13 +217,16 @@ public class CricketDataEntity {
         updatedTimeStamp = Instant.now().toEpochMilli();
     }
 
-	public long getUpdatedTimeStamp() {
+	public Long getUpdatedTimeStamp() {
 		return updatedTimeStamp;
 	}
 
-	public void setUpdatedTimeStamp(long updatedTimeStamp) {
-		this.updatedTimeStamp = updatedTimeStamp;
+	public void setUpdatedTimeStamp(Long updatedTimeStamp) {
+		if (updatedTimeStamp == null) {
+			this.updatedTimeStamp = 0L;
+		} else {
+			this.updatedTimeStamp = updatedTimeStamp;
+
+		}
 	}
- 
-    
 }
