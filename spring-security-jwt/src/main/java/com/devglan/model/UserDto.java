@@ -1,6 +1,8 @@
 package com.devglan.model;
 
 import java.math.BigDecimal;
+import java.util.Set;
+
 
 public class UserDto {
 
@@ -10,8 +12,21 @@ public class UserDto {
     private int age;
     private int salary;
     private BigDecimal balance;
+    
+    private String role;
 
-    public String getUsername() {
+
+
+
+	public String getRole() {
+		return role;
+	}
+
+	public void setRole(String role) {
+		this.role = role;
+	}
+
+	public String getUsername() {
         return username;
     }
 
@@ -58,6 +73,7 @@ public class UserDto {
 	public void setId(int id) {
 		this.id = id;
 	}
+	
 	
 	
     

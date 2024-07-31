@@ -50,7 +50,12 @@ public class UserController {
 
     @RequestMapping(value="/signup", method = RequestMethod.POST)
     public User saveUser(@RequestBody UserDto user){
-        return userService.save(user);
+    	if(userService.findOne(user.getUsername())!=null)
+    		return null;
+    	else {
+			
+    		return userService.save(user);
+    		}
     }
 
 }

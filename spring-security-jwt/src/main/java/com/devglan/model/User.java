@@ -32,7 +32,7 @@ public class User {
     @JoinTable(name = "USER_ROLES", 
     joinColumns = { @JoinColumn(name = "USER_ID") },
     inverseJoinColumns = { @JoinColumn(name = "ROLE_ID") })
-    private Set<Role> roles;
+    private Set<Role> role;
 
     public long getId() {
         return id;
@@ -75,11 +75,11 @@ public class User {
     }
 
     public Set<Role> getRoles() {
-        return roles;
+        return role;
     }
 
-    public void setRoles(Set<Role> roles) {
-        this.roles = roles;
+    public void setRoles(Set<Role> role) {
+        this.role = role;
     }
     
 	public BigDecimal getBalance() {

@@ -319,7 +319,8 @@ public class CricketDataController {
 
 	    return ResponseEntity.ok(responseMap);
 	}
-
+	
+	
 	@PostMapping("/placeBet")
 	@Transactional
 	public CompletableFuture<ResponseEntity<?>> placeBet(@RequestBody Bets bet) {

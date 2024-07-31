@@ -1,6 +1,7 @@
 package com.devglan.service.impl;
 
 import com.devglan.dao.UserDao;
+import com.devglan.model.Role;
 import com.devglan.model.User;
 import com.devglan.model.UserDto;
 import com.devglan.service.UserService;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 
@@ -20,6 +22,9 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 	
 	@Autowired
 	private UserDao userDao;
+	
+	@Autowired
+	private RoleService roleService;
 
 	@Autowired
 	private BCryptPasswordEncoder bcryptEncoder;
@@ -70,8 +75,14 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 	    newUser.setPassword(bcryptEncoder.encode(user.getPassword()));
 		newUser.setAge(user.getAge());
 		newUser.setSalary(user.getSalary());
+        newUser.setExposure(BigDecimal.ZERO);
 		newUser.setBalance(user.getBalance());
-		return userDao.save(newUser);
+		Role role = roleService.getRoleByName(user.getRole());
+		Set<Role> roleSet = new HashSet<Role>();
+		roleSet.add(role);
+	    newUser.setRoles(roleSet);
+        return userDao.save(newUser);
+
     }
 
 	@Override

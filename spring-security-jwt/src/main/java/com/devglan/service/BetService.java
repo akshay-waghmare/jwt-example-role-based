@@ -1125,6 +1125,7 @@ public class BetService {
 		}
 	}
 
+
 	private BigDecimal calculatePotentialWin(Bets bet) {
 		return bet.getAmount().multiply(bet.getOdd().subtract(BigDecimal.ONE));
 	}
@@ -1447,5 +1448,15 @@ public class BetService {
 			cricketDataService.notifyBetStatus(save);
 		}
 	}
+
+
+
+	public List<Bets> getBetsHistoryForMatch(long userId) {
+		// TODO Auto-generated method stub
+		return betRepository.findByUserId(userId);
+	}
+	
+	
+
 
 }
