@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
@@ -39,8 +40,10 @@ import com.devglan.model.ExposureResult;
 import com.devglan.model.LiveMatch;
 import com.devglan.model.Transaction;
 import com.devglan.model.User;
+import com.devglan.model.UserExposure;
 import com.devglan.repository.CricketDataRepository;
 import com.devglan.repository.TransactionRepository;
+import com.devglan.repository.UserExposureRepository;
 import com.devglan.websocket.service.CricketDataService;
 
 @Service
@@ -65,6 +68,9 @@ public class BetService {
 
 	@Autowired
 	private TransactionRepository transactionRepository;
+
+	@Autowired
+	private UserExposureRepository userExposureRepository;
 
 	public Bets getBetById(Long id) throws NotFoundException {
 		return betRepository.findById(id).orElseThrow(() -> new NotFoundException());
@@ -158,7 +164,8 @@ public class BetService {
 						.collect(Collectors.groupingBy(Bets::getTeamName));
 
 				// here it is calculating and reversing he exposure of this match
-				processMatchBets(user, teamBets, winningTeam);
+				//processMatchBets(user, teamBets, winningTeam);
+				reverseUserExposure(user, match);
 
 				for (Bets bet : teamBetList) {
 					logger.debug("Processing bet: {} for user: {}", bet.getBetId(), user.getId());
@@ -233,6 +240,19 @@ public class BetService {
 
 	}
 
+	
+	private void reverseUserExposure(User user, LiveMatch match) {
+	    Optional<UserExposure> userExposureOptional = userExposureRepository.findByUserAndMatchAndSoftDeletedFalse(user, match);
+	    if (userExposureOptional.isPresent()) {
+	        UserExposure userExposure = userExposureOptional.get();
+	        user.setExposure(user.getExposure().abs().subtract(userExposure.getOverallMatchExposure().abs()));
+	        userExposure.setSoftDeleted(true);
+	        userExposureRepository.save(userExposure);
+	        userService.updateUser(user);
+	    }
+	    
+	}
+	
 	private void calculateTotalExposureForAllUsers() {
 		List<User> users = userService.findAll();
 		for (User user : users) {
@@ -620,17 +640,21 @@ public class BetService {
 
 	private void handleOneDayMatch(Bets bet, String currentUsername, CricketDataDTO latestOdds) {
 
+	    logger.info("Handling one day match for bet: {}", bet);
 		boolean confirmBet = false;
 		BigDecimal hundred = BigDecimal.valueOf(100);
 		BigDecimal one = BigDecimal.ONE;
 		CricketDataDTO fetchedLatestOdds = fetchLatestOdds(bet, latestOdds);
 		if (fetchedLatestOdds == null) {
+	        logger.warn("Latest odds could not be fetched. Cancelling bet: {}", bet);
 			cricketDataService.notifyBetStatus(cancelBet(bet));
 			return;
 		}
 
 		String betTeamName = bet.getTeamName();
 		String favTeam = fetchedLatestOdds.getFavTeam(); // Use real-time odds for fav team
+	    logger.info("Fetched latest odds. Favorite team: {}", favTeam);
+
 
 		// Scenario 1: Bet is back on team 1 and favorite team is team 2 -> accept bet
 		// Scenario 2: Bet is back on team 2 and favorite team is team 1 -> accept bet
@@ -641,12 +665,15 @@ public class BetService {
 			fetchedBackOdd = fetchedBackOdd.add(one);
 			BigDecimal newBackOdds = BigDecimal.valueOf(100).divide(fetchedBackOdd).add(BigDecimal.ONE);
 			bet.setOdd(newBackOdds);
+	        logger.info("Bet type is back and team is not favorite. New odds set: {}", newBackOdds);
 
 		}
 		// Scenario 3: Bet is lay on team 1 and favorite team is team 2 -> reject bet
 		// Scenario 4: Bet is lay on team 2 and favorite team is team 1 -> reject bet
 		else if ("lay".equals(bet.getBetType()) && !betTeamName.equalsIgnoreCase(favTeam)) {
 			confirmBet = false;
+	        logger.info("Bet type is lay and team is not favorite. Bet rejected.");
+
 		}
 
 		// Check for bet on favorite team
@@ -658,6 +685,8 @@ public class BetService {
 				confirmBet = true;
 				if (betOddAdjusted.compareTo(fetchedBackOdd) < 0) {
 					bet.setOdd(fetchedBackOdd.subtract(one).divide(BigDecimal.valueOf(100)).add(BigDecimal.ONE));
+	                logger.info("Bet on favorite team with adjusted odds set: {}", bet.getOdd());
+
 				}
 			}
 		} else if ("lay".equals(bet.getBetType()) && betTeamName.equalsIgnoreCase(favTeam)) {
@@ -668,6 +697,7 @@ public class BetService {
 				confirmBet = true;
 				if (betOddAdjusted.compareTo(fetchedLayOdd) > 0) {
 					bet.setOdd(fetchedLayOdd.add(one).divide(BigDecimal.valueOf(100)).add(BigDecimal.ONE));
+	                logger.info("Lay bet on favorite team with adjusted odds set: {}", bet.getOdd());
 				}
 			}
 		}
@@ -681,15 +711,19 @@ public class BetService {
 
 			if (betsByTeam.size() > 1) {
 				// Adjust logic to handle bets on both teams
+	            logger.info("Processing multi-team bets for matchId: {}", bet.getMatchUrl());
 				processMultiTeamBets(bet, currentUsername, betsByTeam);
 			} else if (betsByTeam.size() == 1) {
 				// Logic when bets are only on one team
+	            logger.info("Processing single team bets for team: {}", bet.getTeamName());
 				betsByTeam.get(bet.getTeamName()).remove(bet);
 				singleTeamBetProcessing(bet, currentUsername, betsByTeam.get(bet.getTeamName()));
 			} else {
 				// Handle any other unexpected scenario (e.g., no bets or bets on an unexpected
 				// team)
 				// cancelBet(bet); // Or some other appropriate handling
+	            logger.warn("Unexpected scenario with no bets or bets on unexpected team. Cancelling bet: {}", bet);
+
 			}
 
 			// group them by teamName
@@ -698,6 +732,7 @@ public class BetService {
 			// filter all by teamName
 		} else {
 
+	        logger.info("Bet not confirmed. Cancelling bet: {}", bet);
 			// if the bet is not confirmed directly cancel the bet and notify
 			cricketDataService.notifyBetStatus(cancelBet(bet));
 
@@ -706,49 +741,58 @@ public class BetService {
 	}
 
 	private void singleTeamBetProcessing(Bets bet, String currentUsername, List<Bets> allBetsForMatch) {
-		Bets updatedBet;
-		// This filters the list of bets to include only those that are for the same
-		// team as the current bet.
-		allBetsForMatch = allBetsForMatch.stream().filter(matchBet -> matchBet.getTeamName().equals(bet.getTeamName()))
-				.collect(Collectors.toList());
-		// This calculates the total exposure for the user before adding the current
-		// bet.
-		BigDecimal maxOverallExposurePrevious = calculateNetExposuresInWinLoseCase(allBetsForMatch);
-		bet.setStatus("Confirmed");
-		// Temporarily add the current bet to the list for exposure calculation also
-		allBetsForMatch.add(bet);
-		// This calculates the total exposure for the user after adding the current bet.
-		BigDecimal maxOverallExposure = calculateNetExposuresInWinLoseCase(allBetsForMatch);
-		// Remove the current bet from the list if not intended to be permanently added
-		// at this stage
-		allBetsForMatch.remove(bet);
+	    Bets updatedBet;
 
-		BigDecimal previousAndCurrentExposureDiff = maxOverallExposure.abs().subtract(maxOverallExposurePrevious.abs());
-		User user = userService.findOne(currentUsername);
-		BigDecimal totalPotentialExposure = BigDecimal.ZERO;
-		if (previousAndCurrentExposureDiff.compareTo(BigDecimal.ZERO) >= 0) {
-			// exposure has reduced
-			totalPotentialExposure = user.getExposure().add(previousAndCurrentExposureDiff.abs());
-		} else {
-			// exposure has increased
-			totalPotentialExposure = user.getExposure().subtract(previousAndCurrentExposureDiff.abs());
-		}
-		// Check if user balance covers the maximum overall exposure
-		if (user.getBalance().compareTo(totalPotentialExposure) >= 0) {
-			user.setExposure(totalPotentialExposure);
-			User updateUser = userService.updateUser(user);
-			updatedBet = betRepository.save(bet);
-			updatedBet.setUser(updateUser);
-		} else {
-			// Handle insufficient balance case
-			// I will simply cancell the bet and update the bets table
-			updatedBet = cancelBet(bet);
-		}
+	    // Filter the list of bets to include only those that are for the same team as the current bet.
+	    allBetsForMatch = allBetsForMatch.stream()
+	            .filter(matchBet -> matchBet.getTeamName().equals(bet.getTeamName()))
+	            .collect(Collectors.toList());
 
-		// Notify frontend about the bet confirmations
-		cricketDataService.notifyBetStatus(updatedBet);
+	    // Calculate the total exposure for the user before adding the current bet.
+	    BigDecimal maxOverallExposurePrevious = calculateNetExposuresInWinLoseCase(allBetsForMatch);
+	    bet.setStatus("Confirmed");
+
+	    // Temporarily add the current bet to the list for exposure calculation also.
+	    allBetsForMatch.add(bet);
+
+	    // Calculate the total exposure for the user after adding the current bet.
+	    BigDecimal maxOverallExposure = calculateNetExposuresInWinLoseCase(allBetsForMatch);
+
+	    // Remove the current bet from the list if not intended to be permanently added at this stage.
+	    allBetsForMatch.remove(bet);
+
+	    BigDecimal previousAndCurrentExposureDiff = maxOverallExposure.abs().subtract(maxOverallExposurePrevious.abs());
+	    User user = userService.findOne(currentUsername);
+	    BigDecimal totalPotentialExposure = BigDecimal.ZERO;
+
+	    if (previousAndCurrentExposureDiff.compareTo(BigDecimal.ZERO) >= 0) {
+	        // Exposure has reduced.
+	        totalPotentialExposure = user.getExposure().add(previousAndCurrentExposureDiff.abs());
+	    } else {
+	        // Exposure has increased.
+	        totalPotentialExposure = user.getExposure().subtract(previousAndCurrentExposureDiff.abs());
+	    }
+
+	    // Check if user balance covers the maximum overall exposure.
+	    if (user.getBalance().compareTo(totalPotentialExposure) >= 0) {
+	        user.setExposure(totalPotentialExposure);
+	        User updateUser = userService.updateUser(user);
+	        updatedBet = betRepository.save(bet);
+	        updatedBet.setUser(updateUser);
+
+	        // Save the updated exposure for the match and team.
+	        LiveMatch match = liveMatchService.findByUrl(bet.getMatchUrl());
+	        saveUserExposure(user, match, bet.getTeamName(), maxOverallExposure, null);
+	    } else {
+	        // Handle insufficient balance case: cancel the bet and update the bets table.
+	        updatedBet = cancelBet(bet);
+	    }
+
+	    // Notify frontend about the bet confirmations.
+	    cricketDataService.notifyBetStatus(updatedBet);
 	}
-
+	
+	
 	private void processTestMatchBets(Bets bet, String currentUsername, Map<String, List<Bets>> betsByTeam) {
 		// Preliminary checks and setup
 		List<Bets> allBetsForMatch = getBetsForMatchForUser(bet.getMatchUrl(), bet.getUser().getId());
@@ -845,92 +889,171 @@ public class BetService {
 	}
 
 	private void processMultiTeamBets(Bets bet, String currentUsername, Map<String, List<Bets>> betsByTeam) {
+	    logger.info("Processing multi-team bets for bet: {}", bet.getBetId());
 
-		Map<String, Map<String, BigDecimal>> initialExposures = calculateMatchExposures(betsByTeam);
-		Map<String, BigDecimal> adjustedExposures = adjustExposuresForAllTeams(initialExposures);
-		updateExposuresWithCurrentBet(bet, betsByTeam); // Adds current bet and recalculates exposures
-		// again calculated adjusted exposure with added bet
-		Map<String, Map<String, BigDecimal>> postBetExposures = calculateMatchExposures(betsByTeam);
-		Map<String, BigDecimal> postBetadjustedExposures = adjustExposuresForAllTeams(postBetExposures);
-		User user = userService.findOne(currentUsername);
-		// user the again calculated adjusted exposure instead of initalExposure here
-		// inside this function
-		adjustUserExposureBasedOnBet(user, bet, adjustedExposures, postBetadjustedExposures);
+//	    // Calculate initial exposures
+//	    Map<String, Map<String, BigDecimal>> initialExposures = calculateMatchExposures(betsByTeam);
+//	    logger.info("Initial exposures: {}", initialExposures);
+//
+//	    // Adjust initial exposures
+//	    Map<String, BigDecimal> adjustedExposures = adjustExposuresForAllTeams(initialExposures);
+//	    logger.info("Adjusted exposures: {}", adjustedExposures);
 
+	    // Update exposures with current bet
+	    updateExposuresWithCurrentBet(bet, betsByTeam);
+
+	    // Calculate post-bet exposures
+	    Map<String, Map<String, BigDecimal>> postBetExposures = calculateMatchExposures(betsByTeam);
+	    logger.info("Post-bet exposures: {}", postBetExposures);
+
+	    // Adjust post-bet exposures
+	    Map<String, BigDecimal> postBetAdjustedExposures = adjustExposuresForAllTeams(postBetExposures);
+	    logger.info("Post-bet adjusted exposures: {}", postBetAdjustedExposures);
+
+	    // Find the user
+	    User user = userService.findOne(currentUsername);
+
+	    // Fetch the saved exposure for the match and team
+	    LiveMatch match = liveMatchService.findByUrl(bet.getMatchUrl());
+	    UserExposure previousExposure = getUserExposure(user, match, bet.getTeamName());
+
+	    // Calculate the win and lose exposures
+	    BigDecimal winExposure = postBetAdjustedExposures.get(bet.getTeamName() + " Adjusted Win");
+	    BigDecimal loseExposure = postBetAdjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
+
+	    // Determine the updated maximum exposure using the extracted function
+	    BigDecimal updatedMaxExposure = calculateUpdatedMaxExposure(winExposure, loseExposure);
+	    logger.info("Win Exposure: {}, Lose Exposure: {}, Updated Max Exposure: {}", winExposure, loseExposure, updatedMaxExposure);
+
+	    // Calculate the exposure difference with the new bet
+	    BigDecimal previousMaxExposure = previousExposure.getOverallMatchExposure();
+	    BigDecimal exposureDiff = updatedMaxExposure.abs().subtract(previousMaxExposure.abs());
+	    logger.info("Exposure difference: {}", exposureDiff);
+
+	    // Calculate total overall exposure for all matches
+	    BigDecimal totalExposure  = calculateTotalExposureForUser(user);
+	    logger.info("Total exposure before new bet: {}", totalExposure);
+
+	    // Check if new exposure exceeds user balance
+	    BigDecimal newTotalExposure = totalExposure.add(exposureDiff);
+	    if (newTotalExposure.compareTo(user.getBalance()) > 0) {
+	        logger.info("New total exposure exceeds user balance. Cancelling the bet.");
+	        // Cancel the bet
+	        cancelBet(bet);
+		} else {
+			saveUserExposure(user, match, bet.getTeamName(), updatedMaxExposure,null);
+			totalExposure = calculateTotalExposureForUser(user);
+			user.setExposure(totalExposure.abs());
+			User updateUser = userService.updateUser(user);
+			bet.setUser(updateUser);
+			user.setExposure(newTotalExposure);
+			// Confirm the bet
+			confirmBet(bet);
+		}
 	}
 
 	private void adjustUserExposureBasedOnBet(User user, Bets bet, Map<String, BigDecimal> adjustedExposures,
-			Map<String, BigDecimal> postBetadjustedExposures) {
-		BigDecimal prvWinExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Win");
-		BigDecimal prvLoseExposure = adjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
-		BigDecimal maxPrvExposure = BigDecimal.ZERO;
-//
-//		// Negative values of exposure indicate a potential loss. By focusing on the
-//		// most negative value (i.e., the maximum potential loss), the system ensures
-//		// that the user's risk is properly managed.
-//		// Goal: Find the maximum potential loss (maxPrvExposure) before placing the new
-//		// bet.
-		if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
-			// Both are negative, compare to find the more negative value
-			maxPrvExposure = prvWinExposure.min(prvLoseExposure);
-		} else if (prvWinExposure.compareTo(BigDecimal.ZERO) < 0 && prvLoseExposure.compareTo(BigDecimal.ZERO) > 0) {
-			// Only prvWinExposure is negative
-			maxPrvExposure = prvWinExposure;
-		} else if (prvLoseExposure.compareTo(BigDecimal.ZERO) < 0 && prvWinExposure.compareTo(BigDecimal.ZERO) > 0) {
-			// Only prvLoseExposure is negative
-			maxPrvExposure = prvLoseExposure;
-		}
+			Map<String, BigDecimal> postBetAdjustedExposures, LiveMatch match) {
+		UserExposure previousExposure = getUserExposure(user, match, bet.getTeamName());
 
-		// here
-		BigDecimal updtWinExposure = postBetadjustedExposures.get(bet.getTeamName() + " Adjusted Win");
-		BigDecimal updtLoseExposure = postBetadjustedExposures.get(bet.getTeamName() + " Adjusted Lose");
-		BigDecimal updtMaxExposure = BigDecimal.ZERO;
+		logger.info("Adjusting user exposure for user: {}, bet: {}, matchId: {}", user.getId(), bet.getBetId(),
+				match.getId());
+		BigDecimal prevOverallExposure = previousExposure.getOverallMatchExposure();
+		BigDecimal postOverallExposure = postBetAdjustedExposures.get(bet.getTeamName() + " Adjusted Win")
+				.max(postBetAdjustedExposures.get(bet.getTeamName() + " Adjusted Lose"));
 
-		// Negative values of exposure indicate a potential loss. By focusing on the
-		// most negative value (i.e., the maximum potential loss), the system ensures
-		// that the user's risk is properly managed.
-		// Goal: Find the maximum potential loss (updtMaxExposure) after placing the new
-		// bet.
-		if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0 && updtLoseExposure.compareTo(BigDecimal.ZERO) < 0) {
-			// Both are negative, compare to find the more negative value
-			// When both prvWinExposure and prvLoseExposure are negative, it indicates that
-			// in both win and lose scenarios, the user will incur a loss. The goal is to
-			// identify which scenario leads to a greater loss.
-			updtMaxExposure = updtWinExposure.min(updtLoseExposure);
-		} else if (updtWinExposure.compareTo(BigDecimal.ZERO) < 0 && updtLoseExposure.compareTo(BigDecimal.ZERO) > 0) {
-			// Only prvWinExposure is negative
-			updtMaxExposure = updtWinExposure;
-		} else if (updtLoseExposure.compareTo(BigDecimal.ZERO) < 0 && updtWinExposure.compareTo(BigDecimal.ZERO) > 0) {
-			// Only prvLoseExposure is negative
-			updtMaxExposure = updtLoseExposure;
-		} else {
-			// Both are positive or zero, indicating no potential loss
-			BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
-			BigDecimal latestExposure = user.getExposure().subtract(updatedExposureDiff.abs());
-			user.setExposure(latestExposure);
-			User updateUser = userService.updateUser(user);
-			bet.setStatus("Confirmed");
-			Bets savedBet = betRepository.save(bet);
-			savedBet.setUser(updateUser);
-			cricketDataService.notifyBetStatus(savedBet);
+		logger.info("Previous overall exposure: {}, post-bet overall exposure: {}", prevOverallExposure,
+				postOverallExposure);
 
-			return;
+		BigDecimal exposureDiff = postOverallExposure.subtract(prevOverallExposure);
 
-		}
+		logger.info("Exposure difference: {}", exposureDiff);
 
-		// By calculating the difference between the new and old maximum potential
-		// losses, the system can determine how the user's risk profile has changed due
-		// to the new bet
-		// Goal: Calculate the difference in the worst-case scenario of potential loss
-		// due to the new bet.
-		BigDecimal updatedExposureDiff = updtMaxExposure.abs().subtract(maxPrvExposure.abs());
+// Save the updated exposure
+		saveUserExposure(user, match, bet.getTeamName(), postOverallExposure,null);
 
-		// Goal: Update the user's total potential exposure and decide whether to
-		// confirm or cancel the bet based on this updated exposure.
-//		BigDecimal totalPotentialExposure = calculateTotalPotentialExposure(user, updtMaxExposure);
-		confirmOrCancelBetAndUpdateUser(user, bet, updatedExposureDiff);
+		confirmOrCancelBetAndUpdateUser(user, bet, exposureDiff);
+	}
+	
+	private BigDecimal calculateTotalExposureForUser(User user) {
+	    List<UserExposure> userExposures = geOverAllUserExposureAllMatches(user);
+	    return userExposures.stream()
+	                        .map(UserExposure::getOverallMatchExposure)
+	                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+	}
+	
+	private void confirmBet(Bets bet) {
+	    bet.setStatus("Confirmed");
+	    Bets savedBet = betRepository.save(bet);
+	    cricketDataService.notifyBetStatus(savedBet);
+	    logger.info("Bet {} confirmed.", bet.getBetId());
 	}
 
+	private BigDecimal calculateUpdatedMaxExposure(BigDecimal winExposure, BigDecimal loseExposure) {
+	    if (winExposure.signum() > 0 && loseExposure.signum() > 0) {
+	        return BigDecimal.ZERO;
+	    } else if (winExposure.signum() < 0 && loseExposure.signum() < 0) {
+	        return winExposure.min(loseExposure);
+	    } else if (winExposure.signum() < 0) {
+	        return winExposure;
+	    } else {
+	        return loseExposure;
+	    }
+	}
+	
+	private BigDecimal calculateMaxExposure(BigDecimal winExposure, BigDecimal loseExposure) {
+		if (winExposure.compareTo(BigDecimal.ZERO) < 0 && loseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			return winExposure.min(loseExposure);
+		} else if (winExposure.compareTo(BigDecimal.ZERO) < 0) {
+			return winExposure;
+		} else if (loseExposure.compareTo(BigDecimal.ZERO) < 0) {
+			return loseExposure;
+		}
+		return BigDecimal.ZERO;
+	}
+
+	private UserExposure getUserExposure(User user, LiveMatch match, String teamName) {
+	    try {
+	        return userExposureRepository.findByUserAndMatchAndSoftDeletedFalse(user, match)
+	                .orElseThrow(() -> new RuntimeException("User exposure not found"));
+	    } catch (RuntimeException e) {
+	        logger.info("No previous exposure found for user: {}, match: {}, team: {}. Initializing new exposure.", 
+	                    user.getUsername(), match, teamName);
+	        UserExposure newExposure = new UserExposure();
+	        newExposure.setUser(user);
+	        newExposure.setMatch(match);
+	        newExposure.setTeamName(teamName);
+	        newExposure.setOverallMatchExposure(BigDecimal.ZERO);
+	        return newExposure;
+	    }
+	}
+	
+	private List<UserExposure> geOverAllUserExposureAllMatches(User user) {
+	    try {
+	        return userExposureRepository.findByUserAndSoftDeletedFalse(user)
+	                .orElseGet(ArrayList::new);
+	    } catch (RuntimeException e) {
+	        logger.info("Error while fetching user exposures for user: {}. Returning empty list.", user.getUsername());
+	        return new ArrayList<>();
+	    }
+	}
+
+	private void saveUserExposure(User user, LiveMatch match, String teamName, BigDecimal overallMatchExposure, BigDecimal overallSessionExposure) {
+	    UserExposure userExposure = userExposureRepository.findByUserAndMatchAndSoftDeletedFalse(user, match)
+	            .orElse(new UserExposure());
+
+	    userExposure.setUser(user);
+	    userExposure.setMatch(match);
+	    userExposure.setTeamName(teamName);
+	    if(overallMatchExposure != null) {	    	
+	    	userExposure.setOverallMatchExposure(overallMatchExposure);
+	    }
+	    if(overallSessionExposure != null) {	    	
+	    	userExposure.setOverallSessionExposre(overallSessionExposure);
+	    }
+	    userExposureRepository.save(userExposure);
+	}
+	
 	public Map<String, BigDecimal> adjustExposuresForAllTeams(Map<String, Map<String, BigDecimal>> initialExposures) {
 		Map<String, BigDecimal> adjustedExposures = new HashMap<>();
 
@@ -960,7 +1083,8 @@ public class BetService {
 	}
 
 	private void confirmOrCancelBetAndUpdateUser(User user, Bets bet, BigDecimal previousAndCurrentExposureDiff) {
-		
+	    logger.info("Confirming or cancelling bet for user: {}, bet: {}, exposureDiff: {}", user.getId(), bet.getBetId(), previousAndCurrentExposureDiff);
+
 		BigDecimal totalPotentialExposure = BigDecimal.ZERO;
 		if (previousAndCurrentExposureDiff.compareTo(BigDecimal.ZERO) >= 0) {
 			// exposure has reduced
@@ -973,6 +1097,8 @@ public class BetService {
 		// not adding the absolte value of totalPotentialExposure as it can also be
 		// negative which means the exposure decreased
 		BigDecimal latestExposure = totalPotentialExposure;
+	    logger.info("Total potential exposure: {}", totalPotentialExposure);
+
 		if (user.getBalance().compareTo(latestExposure) >= 0) {
 			user.setExposure(latestExposure);
 			User updateUser = userService.updateUser(user);
@@ -980,8 +1106,12 @@ public class BetService {
 			Bets savedBet = betRepository.save(bet);
 			savedBet.setUser(updateUser);
 			cricketDataService.notifyBetStatus(savedBet);
+	        logger.info("Bet confirmed and user exposure updated: {}", savedBet.getBetId());
+
 		} else {
 			cancelBet(bet);
+	        logger.info("Bet cancelled due to insufficient balance: {}", user.getBalance());
+
 		}
 	}
 
@@ -1013,8 +1143,10 @@ public class BetService {
 
 	public Bets cancelBet(Bets bet) {
 		bet.setStatus("Cancelled");
-		// for safer side saving the cancelled bet
-		return betRepository.save(bet);
+		Bets savedBet = betRepository.save(bet);
+	    cricketDataService.notifyBetStatus(savedBet);
+	    logger.info("Bet {} cancelled.", bet.getBetId());
+	    return savedBet;
 	}
 
 	public List<Bets> getBetsForMatchForUser(String matchUrl, long userId) {
@@ -1038,7 +1170,99 @@ public class BetService {
 
 	    return matchExposures;
 	}
+	
+	
+	@Transactional
+	public void correctPreviousWinnings(LiveMatch match) {
+	    logger.info("Reversing previous winnings for match: {}", match.getUrl());
+	    String normalizedMatchUrl = normalizeUrl(match.getUrl());
+	    
+	    List<Transaction> transactions = transactionRepository.findByRemarkContainingAndFromToAndStatus(normalizedMatchUrl, "match", "done");
 
+	    for (Transaction transaction : transactions) {
+	        User user = transaction.getUser();
+	        BigDecimal amount = transaction.getAmount();
+	        if ("Credit".equals(transaction.getTransactionType())) {
+	            user.setBalance(user.getBalance().subtract(amount.abs()));
+	        } else if ("Debit".equals(transaction.getTransactionType())) {
+	            user.setBalance(user.getBalance().add(amount.abs()));
+	        }
+	        transaction.setStatus("Reversed");
+	        transactionRepository.save(transaction);
+	        userService.updateUser(user);
+
+	        logger.debug("Reversed transaction: {}, updated balance for user: {}", transaction.getTransactionId(), user.getId());
+	    }
+
+	    List<Bets> bets = betRepository.findByMatchUrlContaining(extractRelevantPart(match.getUrl()));
+	    bets = bets.stream().filter(bet -> !bet.getIsSessionBet()).collect(Collectors.toList());
+	    for (Bets bet : bets) {
+	        if ("Won".equals(bet.getStatus())) {
+	            bet.setStatus("Confirmed");
+	        } else if ("Lost".equals(bet.getStatus())) {
+	            bet.setStatus("Confirmed");
+	        }
+	        betRepository.save(bet);
+	        logger.debug("Updated bet status to pending for bet: {}", bet.getBetId());
+	    }
+
+	    reverseUserExposureForMatch(match);
+	}
+
+	private void reverseUserExposureForMatch(LiveMatch match) {
+	    List<UserExposure> exposures = userExposureRepository.findByMatch(match);
+	    for (UserExposure exposure : exposures) {
+	        User user = exposure.getUser();
+	        user.setExposure(user.getExposure().add(exposure.getOverallMatchExposure().abs()));
+	        exposure.setSoftDeleted(false);
+	        userExposureRepository.save(exposure);
+	        userService.updateUser(user);
+	        logger.debug("Reversed exposure for user: {}, exposure: {}", user.getId(), user.getExposure());
+	    }
+	}
+	
+
+	private String normalizeUrl(String url) {
+	    if (url == null) {
+	        return null;
+	    }
+
+	    // Extract the relevant part of the URL
+	    String lastPart = url.contains("/") ? url.substring(url.lastIndexOf('/') + 1) : url;
+
+	    // Check if the extracted part is not "live" or any other irrelevant keyword
+	    if (lastPart.equalsIgnoreCase("live")) {
+	        // If it's "live", take the part before the last "/"
+	        url = url.substring(0, url.lastIndexOf('/'));
+	        lastPart = url.substring(url.lastIndexOf('/') + 1);
+	    }
+
+	    // Replace hyphens with spaces, remove other special characters, and convert to lowercase
+	    return lastPart.replace("-", " ")
+	                   .replaceAll("[^a-z0-9 ]", "")  // Keep only alphanumeric characters and spaces
+	                   .toLowerCase()
+	                   .trim();  // Trim any leading or trailing spaces
+	}
+	
+	private String extractRelevantPart(String url) {
+	    if (url == null) {
+	        return null;
+	    }
+
+	    // Extract the last part of the URL after the last '/'
+	    String lastPart = url.contains("/") ? url.substring(url.lastIndexOf('/') + 1) : url;
+
+	    // Ensure the last part is formatted correctly (e.g., remove 'live' if needed)
+	    if (lastPart.equalsIgnoreCase("live")) {
+	        // If the last part is 'live', take the part before it
+	        url = url.substring(0, url.lastIndexOf('/'));
+	        lastPart = url.substring(url.lastIndexOf('/') + 1);
+	    }
+
+	    // The last part should now be in the form bp-vs-ls-5th-match-the-hundred-2024-men
+	    return lastPart;
+	}
+	
 	private synchronized  Map<String, BigDecimal> calculateExposuresForTeam(List<Bets> teamBets) {
 
 		BigDecimal netLayStake = BigDecimal.ZERO;
@@ -1294,6 +1518,9 @@ public class BetService {
 			}
 			userService.updateUser(user);
 			bet.setStatus("Confirmed");
+			
+			LiveMatch match = liveMatchService.findByUrl(bet.getMatchUrl());
+	        saveUserExposure(user, match, bet.getTeamName(), null, newExposure);
 
 			cricketDataService.notifyBetStatus(betRepository.save(bet));
 		} else {
@@ -1439,6 +1666,9 @@ public class BetService {
 			userService.updateUser(user);
 			bet.setStatus("Confirmed");
 			Bets save = betRepository.save(bet);
+			
+	        LiveMatch match = liveMatchService.findByUrl(bet.getMatchUrl());
+	        saveUserExposure(user, match, bet.getTeamName(), null, totalExposure);
 			cricketDataService.notifyBetStatus(save);
 		} else {
 			// Reject the bet due to insufficient balance
