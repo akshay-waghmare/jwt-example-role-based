@@ -1,5 +1,6 @@
 package com.devglan.config;
 
+
 import javax.annotation.Resource;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,12 +22,9 @@ import org.springframework.web.client.RestTemplate;
 
 @Configuration
 @EnableWebSecurity
-//@EnableGlobalMethodSecurity(securedEnabled = true)
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
-	// @EnableGlobalMethodSecurity
-	// provide AOP based preAuth and PostAuth PreFilter and PostFilter
 	@Resource(name = "userService")
 	private UserDetailsService userDetailsService;
 
@@ -58,22 +56,40 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
 		http.cors().and().headers()
 				.addHeaderWriter(new XFrameOptionsHeaderWriter(XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN))
-				.and().csrf().disable().
+				.and().csrf().disable()
 
-				authorizeRequests()
-				.antMatchers("/users/search","/users/search/**", "/ws/*", "/ws/**", "/h2-console/**", "/token/*", "/token", "/token/**",
-						"/signup", "/football", "/football/**", "/events", "/events/**", "/market/**", "/tennis",
-						"/tennis/**", "/cricket-data", "/cricket-data/**", "/bet-history", "/bet-history/**")
-				.permitAll().anyRequest().authenticated().and().exceptionHandling()
-				.authenticationEntryPoint(unauthorizedHandler).and().sessionManagement()
+				.authorizeRequests()
+				.antMatchers(
+				        "/users/search", "/users/search/**", 
+				        "/ws/*", "/ws/**", 
+				        "/h2-console/**", 
+				        "/token/*", "/token", "/token/**",
+						"/signup", "/football", "/football/**", 
+						"/events", "/events/**", 
+						"/market/**", 
+						"/tennis", "/tennis/**", 
+						"/cricket-data", "/cricket-data/**", 
+						"/bet-history", "/bet-history/**",
+						"/cricket-data/update-winning-team", "/cricket-data/update-winning-team/**"
+				).permitAll()
+				.anyRequest().authenticated()
+				.and().exceptionHandling()
+				.authenticationEntryPoint(unauthorizedHandler)
+				.and().sessionManagement()
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+
 		http.addFilterBefore(authenticationTokenFilterBean(), UsernamePasswordAuthenticationFilter.class);
 	}
 
-	// comment this if you are not using h2-console
 	@Override
 	public void configure(WebSecurity web) throws Exception {
-		web.ignoring().antMatchers("/users/search", "/users/search/**","/h2-console/**", "/ws/*", "/ws/**", "/token", "/token/*");
+		web.ignoring().antMatchers(
+		        "/users/search", "/users/search/**", 
+		        "/h2-console/**", 
+		        "/ws/*", "/ws/**", 
+		        "/token", "/token/*", 
+		        "/cricket-data/update-winning-team", "/cricket-data/update-winning-team/**"
+		);
 	}
 
 	@Bean
@@ -85,7 +101,4 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	public RestTemplate restTemplate() {
 		return new RestTemplate();
 	}
-	
-	
-
 }

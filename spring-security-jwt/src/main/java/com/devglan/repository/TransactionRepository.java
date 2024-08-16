@@ -15,4 +15,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     @Query("SELECT t FROM Transaction t WHERE t.transactionDate BETWEEN :startDate AND :endDate AND t.user.id = :userId")
     List<Transaction> findTransactionsBetweenDates(@Param("startDate") Date startDate, @Param("endDate") Date endDate, @Param("userId") Long userId);
+
+    List<Transaction> findByRemarkContainingAndFromToAndStatus(String normalizedMatchUrl, String fromTo, String status);
+
+
 }

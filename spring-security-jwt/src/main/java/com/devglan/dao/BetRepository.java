@@ -21,4 +21,7 @@ public interface BetRepository extends JpaRepository<Bets, Long> {
 	
 	@Query("SELECT b FROM Bets b WHERE b.user.id = :userId AND :matchUrl LIKE CONCAT('%', b.matchUrl, '%') AND b.status = 'Confirmed'")
     List<Bets> findConfirmedBetsByUserIdAndMatchUrl(@Param("userId") long userId, @Param("matchUrl") String matchUrl);
+
+	List<Bets> findByMatchUrlContaining(String url);
+
 }

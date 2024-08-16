@@ -282,12 +282,35 @@ public class CricketDataController {
 		return ResponseEntity.ok(response);
 	}
 	
+	@PostMapping("/update-winning-team")
+	public ResponseEntity<?> updateWinningTeam(@RequestParam String matchUrl, @RequestParam String winningTeam) {
+		try {
+			LiveMatch match = liveMatchService.findByUrl(matchUrl);
+			if (match == null) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Match not found");
+			}
+
+			match.setLastKnownState(winningTeam + " won by correction");
+			match.setDistributionDone(false); // Mark the match for redistribution
+			liveMatchService.update(match);
+
+			betService.correctPreviousWinnings(match);
+
+			// Re-trigger the winnings distribution
+			//betService.distributeExposureAndWinnings(match);
+
+			return ResponseEntity.ok("Winning team updated successfully");
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating winning team");
+		}
+	}
+
 	@GetMapping("/get-match-bet-with-exposure")
 	public ResponseEntity<Map<String, BetResponse>> getMatchBetsWithExposure() {
 
-	    Set<String> excludedStatuses = new HashSet<>(Arrays.asList("Won", "Lost", "Pending", "Cancelled"));
+		Set<String> excludedStatuses = new HashSet<>(Arrays.asList("Won", "Lost", "Pending", "Cancelled"));
 
-	    List<LiveMatch> allLive = liveMatchService.findAll();
+		List<LiveMatch> allLive = liveMatchService.findAll();
 	    
 	    Map<String, BetResponse> responseMap = new HashMap<>();
 
