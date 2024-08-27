@@ -115,6 +115,10 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 	public List<LiveMatch> findAll() {
 		return liveMatchRepository.findByIsDeletedFalse();
 	}
+	
+	public List<LiveMatch> findAllLiveMatches() {
+		return liveMatchRepository.findByDeletionAttemptsLessThan(Integer.valueOf(2));
+	}
 
 	public List<LiveMatch> findAllMatches() {
 		return liveMatchRepository.findAll();

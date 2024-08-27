@@ -16,4 +16,5 @@ public interface LiveMatchRepository extends JpaRepository<LiveMatch, Long> , Li
 	List<LiveMatch> findByIsDeletedTrue();
 	@Query("SELECT lm FROM LiveMatch lm WHERE lm.url LIKE %:url%")
     LiveMatch findByUrlContaining(@Param("url") String url);
+	List<LiveMatch> findByDeletionAttemptsLessThan(Integer attempts);
 }

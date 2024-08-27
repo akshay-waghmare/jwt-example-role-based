@@ -17,7 +17,7 @@ public interface LiveMatchService {
 
 	public List<LiveMatch> findAllFinishedMatches();
 	public LiveMatch findByUrl(String url);
-	
+	public List<LiveMatch> findAllLiveMatches();
 	LiveMatch update(LiveMatch match);
     
 }

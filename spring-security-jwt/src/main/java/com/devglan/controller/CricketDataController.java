@@ -239,7 +239,7 @@ public class CricketDataController {
 		try {
 			List<LiveMatch> liveMatches = null;
 			try {
-				liveMatches = liveMatchService.findAll();
+				liveMatches = liveMatchService.findAllLiveMatches();
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
