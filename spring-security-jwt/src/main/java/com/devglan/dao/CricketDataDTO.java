@@ -4,6 +4,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.devglan.model.BatsmanData;
+import com.devglan.model.BowlerData;
+import com.devglan.model.PlayingXI;
+import com.devglan.model.TeamComparison;
+import com.devglan.model.TeamForm;
+import com.devglan.model.VenueStats;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class CricketDataDTO {
@@ -15,7 +21,7 @@ public class CricketDataDTO {
 	@JsonProperty("batting_team")
 	private String battingTeamName;
 	@JsonProperty("session_odds")
-	private SessionOdds sessionOdds;
+	private Set<SessionOdds> sessionOddsList;
 	@JsonProperty("over")
 	private Double over;
 	@JsonProperty("score")
@@ -34,6 +40,10 @@ public class CricketDataDTO {
     private String finalResultText;
     @JsonProperty("overs_data")
     private List<OversData> oversData;
+    @JsonProperty("batsman_data")
+    private List<BatsmanData> batsmanData;
+	@JsonProperty("bowler_data")
+    private List<BowlerData> bowlerData;
     
     private Map<String, List<SessionOverData>> teamWiseSessionData;
     
@@ -43,6 +53,22 @@ public class CricketDataDTO {
 
 	
 
+
+    public List<BatsmanData> getBatsmanData() {
+		return batsmanData;
+	}
+
+	public void setBatsmanData(List<BatsmanData> batsmanData) {
+		this.batsmanData = batsmanData;
+	}
+
+	public List<BowlerData> getBowlerData() {
+		return bowlerData;
+	}
+
+	public void setBowlerData(List<BowlerData> bowlerData) {
+		this.bowlerData = bowlerData;
+	}
 
 	public long getUpdatedTimeStamp() {
 		return updatedTimeStamp;
@@ -64,6 +90,16 @@ public class CricketDataDTO {
 	private String bat_or_ball_selected;
 	private long updatedTimeStamp;
 	private long lastOddsUpdated;
+	
+	
+	private String matchDate;
+    private String venue;
+    private String matchName;
+    private Set<TeamForm> teamForm;
+    private Map<String, TeamComparison> teamComparison;
+    private VenueStats venueStats;
+    private Map<String, Set<PlayingXI>> playingXI;
+    private String tossInfo;
 
 	/*
 	 * public Map<String, List<String>> getTeam_player_info() { return
@@ -75,6 +111,74 @@ public class CricketDataDTO {
 
 	public String getToss_won_country() {
 		return toss_won_country;
+	}
+
+	public String getMatchDate() {
+		return matchDate;
+	}
+
+	public void setMatchDate(String matchDate) {
+		this.matchDate = matchDate;
+	}
+
+	public String getVenue() {
+		return venue;
+	}
+
+	public void setVenue(String venue) {
+		this.venue = venue;
+	}
+
+	public String getMatchName() {
+		return matchName;
+	}
+
+	public void setMatchName(String matchName) {
+		this.matchName = matchName;
+	}
+
+	
+
+	public Map<String, TeamComparison> getTeamComparison() {
+		return teamComparison;
+	}
+
+	public void setTeamComparison(Map<String, TeamComparison> teamComparison) {
+		this.teamComparison = teamComparison;
+	}
+
+	public VenueStats getVenueStats() {
+		return venueStats;
+	}
+
+	public void setVenueStats(VenueStats venueStats) {
+		this.venueStats = venueStats;
+	}
+
+	
+
+	public Set<TeamForm> getTeamForm() {
+		return teamForm;
+	}
+
+	public void setTeamForm(Set<TeamForm> teamForm) {
+		this.teamForm = teamForm;
+	}
+
+	public Map<String, Set<PlayingXI>> getPlayingXI() {
+		return playingXI;
+	}
+
+	public void setPlayingXI(Map<String, Set<PlayingXI>> playingXI) {
+		this.playingXI = playingXI;
+	}
+
+	public String getTossInfo() {
+		return tossInfo;
+	}
+
+	public void setTossInfo(String tossInfo) {
+		this.tossInfo = tossInfo;
 	}
 
 	public void setToss_won_country(String toss_won_country) {
@@ -135,12 +239,13 @@ public class CricketDataDTO {
 		return favTeam;
 	}
 
-	public SessionOdds getSessionOdds() {
-		return sessionOdds;
+	
+	public Set<SessionOdds> getSessionOddsList() {
+		return sessionOddsList;
 	}
 
-	public void setSessionOdds(SessionOdds sessionOdds) {
-		this.sessionOdds = sessionOdds;
+	public void setSessionOddsList(Set<SessionOdds> sessionOddsList) {
+		this.sessionOddsList = sessionOddsList;
 	}
 
 	public void setFavTeam(String favTeam) {

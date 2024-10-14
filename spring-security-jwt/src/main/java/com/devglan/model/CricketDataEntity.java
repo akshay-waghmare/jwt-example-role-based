@@ -2,7 +2,9 @@ package com.devglan.model;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Embedded;
@@ -10,15 +12,19 @@ import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.Index;
+import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
 import javax.persistence.PrePersist;
 import javax.persistence.PreUpdate;
 import javax.persistence.Table;
 
+import com.devglan.dao.MatchInfoEntity;
 import com.devglan.dao.MatchOdds;
 import com.devglan.dao.OversData;
 import com.devglan.dao.SessionOdds;
 import com.devglan.dao.TeamOdds;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 @Table(name = "cricket_data", indexes = {
@@ -28,6 +34,10 @@ public class CricketDataEntity {
 
     @Id
     private String url;
+    
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "url", referencedColumnName = "url", insertable = false, updatable = false)
+    private MatchInfoEntity matchInfo;
     
     @ElementCollection
     private List<MatchOdds> matchOdds;
@@ -42,8 +52,9 @@ public class CricketDataEntity {
     private Integer runsOnBall;
     private String favTeam;
 
-    @Embedded
-    private SessionOdds sessionOdds;
+    @OneToMany(mappedBy = "cricketDataEntity", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonManagedReference // This will handle the forward part of the relationship
+    private Set<SessionOdds> sessionOddsSet;  // Using Set instead of List for better handling
     
     @OneToMany(mappedBy = "cricketDataEntity", fetch = FetchType.EAGER, cascade = javax.persistence.CascadeType.ALL)
     private List<TeamSessionData> teamWiseSessionData;
@@ -70,6 +81,18 @@ public class CricketDataEntity {
     }
 
    
+
+	public MatchInfoEntity getMatchInfo() {
+		return matchInfo;
+	}
+
+
+
+	public void setMatchInfo(MatchInfoEntity matchInfo) {
+		this.matchInfo = matchInfo;
+	}
+
+
 
 	public Long getLastOddsUpdatedTimeStamp() {
 		return lastOddsUpdatedTimeStamp;
@@ -155,15 +178,16 @@ public class CricketDataEntity {
         this.favTeam = favTeam;
     }
 
-    public SessionOdds getSessionOdds() {
-        return sessionOdds;
-    }
+    
+    public Set<SessionOdds> getSessionOddsSet() {
+		return sessionOddsSet;
+	}
 
-    public void setSessionOdds(SessionOdds sessionOdds) {
-        this.sessionOdds = sessionOdds;
-    }
+	public void setSessionOddsSet(Set<SessionOdds> sessionOddsSet) {
+		this.sessionOddsSet = sessionOddsSet;
+	}
 
-    public String getCurrentRunRate() {
+	public String getCurrentRunRate() {
         return currentRunRate;
     }
 

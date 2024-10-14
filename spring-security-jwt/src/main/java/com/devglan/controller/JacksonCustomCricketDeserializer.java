@@ -3,9 +3,11 @@ package com.devglan.controller;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.MatchOdds;
@@ -13,6 +15,13 @@ import com.devglan.dao.OversData;
 import com.devglan.dao.SessionOdds;
 import com.devglan.dao.SessionOverData;
 import com.devglan.dao.TeamOdds;
+import com.devglan.model.BatsmanData;
+import com.devglan.model.BowlerData;
+import com.devglan.model.PlayingXI;
+import com.devglan.model.TeamComparison;
+import com.devglan.model.TeamForm;
+import com.devglan.model.TeamScore;
+import com.devglan.model.VenueStats;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -41,6 +50,137 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
         CricketDataDTO cricketData = new CricketDataDTO();
         Map<String, List<String>> teamPlayerInfo = new HashMap<>();
 
+        // Extract match date, venue, match name, toss info, and URL
+        if (node.has("match_date")) {
+            cricketData.setMatchDate(node.get("match_date").asText());
+        }
+        if (node.has("venue")) {
+            cricketData.setVenue(node.get("venue").asText());
+        }
+        if (node.has("match_name")) {
+            cricketData.setMatchName(node.get("match_name").asText());
+        }
+        if (node.has("toss_info")) {
+            cricketData.setTossInfo(node.get("toss_info").asText());
+        }
+        if (node.has("url")) {
+            cricketData.setUrl(node.get("url").asText());
+        }
+
+        // Extract team form data
+        if (node.has("team_form")) {
+            Set<TeamForm> teamFormList = new HashSet<>();
+            for (JsonNode teamFormNode : node.get("team_form")) {
+                TeamForm teamForm = new TeamForm();
+                teamForm.setMatchName(teamFormNode.get("match_name").asText());
+                teamForm.setSeriesName(teamFormNode.get("series_name").asText());
+
+                List<TeamScore> teamScores = new ArrayList<>();
+                for (JsonNode teamNode : teamFormNode.get("teams")) {
+                    TeamScore teamScore = new TeamScore();
+                    teamScore.setTeamName(teamNode.get("team_name").asText());
+                    teamScore.setTeamScore(teamNode.get("team_score").asText());
+                    teamScore.setTeamOver(teamNode.get("team_over").asText());
+                    teamScores.add(teamScore);
+                }
+                teamForm.setTeams(teamScores);
+                teamFormList.add(teamForm);
+            }
+            cricketData.setTeamForm(teamFormList);
+        }
+
+        // Extract team comparison data
+        if (node.has("team_comparison")) {
+            Map<String, TeamComparison> teamComparisonMap = new HashMap<>();
+            Iterator<Map.Entry<String, JsonNode>> teamComparisonFields = node.get("team_comparison").fields();
+            while (teamComparisonFields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = teamComparisonFields.next();
+                TeamComparison teamComparison = new TeamComparison();
+                teamComparison.setMatchesPlayed(entry.getValue().get("matches_played").asText());
+                teamComparison.setWinPercentage(entry.getValue().get("win_percentage").asText());
+                teamComparison.setAvgScore(entry.getValue().get("avg_score").asText());
+                teamComparison.setHighestScore(entry.getValue().get("highest_score").asText());
+                teamComparison.setLowestScore(entry.getValue().get("lowest_score").asText());
+                teamComparisonMap.put(entry.getKey(), teamComparison);
+            }
+            cricketData.setTeamComparison(teamComparisonMap);
+        }
+
+        // Extract venue stats data
+        if (node.has("venue_stats")) {
+            VenueStats venueStats = new VenueStats();
+            JsonNode venueStatsNode = node.get("venue_stats");
+            venueStats.setMatches(venueStatsNode.get("matches").asText());
+            venueStats.setWinBatFirst(venueStatsNode.get("win_bat_first").asText());
+            venueStats.setWinBowlFirst(venueStatsNode.get("win_bowl_first").asText());
+            venueStats.setAvg1stInns(venueStatsNode.get("avg_1st_inns").asText());
+            venueStats.setAvg2ndInns(venueStatsNode.get("avg_2nd_inns").asText());
+            cricketData.setVenueStats(venueStats);
+        }
+
+        // Extract playing XI
+        if (node.has("playing_xi")) {
+            Map<String, Set<PlayingXI>> playingXIMap = new HashMap<>();
+            JsonNode playingXINode = node.get("playing_xi");
+            Iterator<Map.Entry<String, JsonNode>> teamXIFields = playingXINode.fields();
+            while (teamXIFields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = teamXIFields.next();
+                Set<PlayingXI> teamPlayingXI = new HashSet<>();
+                for (JsonNode playerNode : entry.getValue()) {
+                    PlayingXI player = new PlayingXI();
+                    player.setPlayerName(playerNode.get("playerName").asText());
+                    player.setPlayerRole(playerNode.get("playerRole").asText());
+                    teamPlayingXI.add(player);
+                }
+                playingXIMap.put(entry.getKey(), teamPlayingXI);
+            }
+            cricketData.setPlayingXI(playingXIMap);
+        }
+        
+        if (node.has("batsman_data") && node.has("bowler_data")) {
+            // Handle Batsman Data
+            JsonNode batsmanDataNode = node.get("batsman_data");
+            List<BatsmanData> batsmanDataList = new ArrayList<>();
+
+            if (batsmanDataNode.isArray()) {
+                for (JsonNode batsmanNode : batsmanDataNode) {
+                    BatsmanData batsman = new BatsmanData();
+                    batsman.setName(getTextValue(batsmanNode, "name", ""));
+                    batsman.setScore(getTextValue(batsmanNode, "runs", "")); // Assuming score = runs
+                    batsman.setBallsFaced(getTextValue(batsmanNode, "balls_faced", "0"));
+                    batsman.setFours(getTextValue(batsmanNode, "fours", "0"));
+                    batsman.setSixes(getTextValue(batsmanNode, "sixes", "0"));
+                    // Add strike rate if available
+                    if (batsmanNode.has("strike_rate")) {
+                        batsman.setStrikeRate(batsmanNode.get("strike_rate").asText());
+                    }
+                 // Handle boolean "on_strike"
+                    if (batsmanNode.has("on_strike")) {
+                        batsman.setOnStrike(batsmanNode.get("on_strike").asBoolean()); // This will parse the boolean value
+                    }
+                    batsmanDataList.add(batsman);
+                }
+            }
+
+            // Handle Bowler Data
+            JsonNode bowlerDataNode = node.get("bowler_data");
+            List<BowlerData> bowlerDataList = new ArrayList<>();
+
+            if (bowlerDataNode.isObject()) {
+                BowlerData bowler = new BowlerData();
+                bowler.setName(getTextValue(bowlerDataNode, "name", ""));
+                bowler.setScore(getTextValue(bowlerDataNode, "runs_conceded", "")); // Assuming score = runs_conceded
+                bowler.setBallsBowled(getTextValue(bowlerDataNode, "balls_bowled", ""));
+                bowler.setWicketsTaken(getTextValue(bowlerDataNode, "wickets_taken", ""));
+                bowler.setDotBalls(getTextValue(bowlerDataNode, "dot_balls", ""));
+                bowlerDataList.add(bowler);
+            }
+
+            // Set the lists to the cricketData object
+            cricketData.setBatsmanData(batsmanDataList);
+            cricketData.setBowlerData(bowlerDataList);
+        }
+        
         if (node.has("match_update")) {
             JsonNode matchUpdateNode = node.get("match_update");
 
@@ -175,29 +315,39 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
         }
         
         if (node.has("sessionData")) {
-            JsonNode sessionDataNode = node.get("sessionData").get(0); // Assuming only one session
+            // Assuming sessionData is an array with multiple session entries
+            Set<SessionOdds> sessionOddsList = new HashSet<>();
 
-            if (sessionDataNode != null && sessionDataNode.has("sessionName")) {              
-                SessionOdds sessionOdds = new SessionOdds();
-                JsonNode oddsNode = sessionDataNode.get("odds").get(0);
-                int sessionBackOdds = oddsNode.get("value").asInt();
-                oddsNode = sessionDataNode.get("odds").get(1);
-                int sessionLayOdds = oddsNode.get("value").asInt();
-                if(sessionBackOdds != 0) {                	
-                	if (sessionBackOdds == sessionLayOdds) {
-                		sessionLayOdds += 1;
-                	}
-                	sessionOdds.setSessionBackOdds(String.valueOf(sessionBackOdds));
-                	sessionOdds.setSessionLayOdds(String.valueOf(sessionLayOdds));
+            for (JsonNode sessionDataNode : node.get("sessionData")) { // Iterate over all session entries
+                if (sessionDataNode != null && sessionDataNode.has("sessionName")) {
+                    SessionOdds sessionOdds = new SessionOdds();
+                    JsonNode oddsNode = sessionDataNode.get("odds").get(0);
+                    int sessionBackOdds = oddsNode.get("value").asInt();
+                    oddsNode = sessionDataNode.get("odds").get(1);
+                    int sessionLayOdds = oddsNode.get("value").asInt();
+
+                    // Check if sessionBackOdds is valid and adjust lay odds if necessary
+                    if (sessionBackOdds != 0) {
+                        if (sessionBackOdds == sessionLayOdds) {
+                            sessionLayOdds += 1;
+                        }
+                        sessionOdds.setSessionBackOdds(String.valueOf(sessionBackOdds));
+                        sessionOdds.setSessionLayOdds(String.valueOf(sessionLayOdds));
+                    } else {
+                        // In case sessionBackOdds is 0, fallback to string values from the node
+                        sessionOdds.setSessionBackOdds(sessionDataNode.get("odds").get(0).get("value").asText());
+                        sessionOdds.setSessionLayOdds(sessionDataNode.get("odds").get(1).get("value").asText());
+                    }
+
+                    sessionOdds.setSessionOver(sessionDataNode.get("sessionName").asText());
+
+                    // Add the session odds object to the list
+                    sessionOddsList.add(sessionOdds);
                 }
-                else {
-                	sessionOdds.setSessionBackOdds(oddsNode.get("value").asText());
-                	sessionOdds.setSessionLayOdds(oddsNode.get("value").asText());
-                }
-                
-                sessionOdds.setSessionOver(sessionDataNode.get("sessionName").asText());
-                cricketData.setSessionOdds(sessionOdds);
             }
+
+            // Store the list of session odds in the DTO
+            cricketData.setSessionOddsList(sessionOddsList);
         }
         
         // Extract the URL from the JSON node and set it in the DTO
@@ -220,17 +370,6 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
         
         if (node.has("teamName")) {
             cricketData.setBattingTeamName(node.get("teamName").asText());
-        }
-
-        if (node.has("session_odds")) {
-            JsonNode sessionOddsNode = node.get("session_odds");
-
-            SessionOdds sessionOdds = new SessionOdds();
-            sessionOdds.setSessionBackOdds(sessionOddsNode.get("session_back_odds").asText());
-            sessionOdds.setSessionLayOdds(sessionOddsNode.get("session_lay_odds").asText());
-            sessionOdds.setSessionOver(sessionOddsNode.get("over").asText());
-
-            cricketData.setSessionOdds(sessionOdds);
         }
         
         if (node.has("over"))
@@ -269,6 +408,14 @@ public class JacksonCustomCricketDeserializer extends StdDeserializer<CricketDat
             cricketData.setBat_or_ball_selected(node.get("bat_or_ball_selected").asText());
         }
         return cricketData;
+    }
+    
+    private String getTextValue(JsonNode node, String fieldName, String defaultValue) {
+        JsonNode fieldNode = node.get(fieldName);
+        if (fieldNode != null && !fieldNode.isNull()) {
+            return fieldNode.asText();
+        }
+        return defaultValue;
     }
 
 }

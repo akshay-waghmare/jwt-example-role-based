@@ -48,7 +48,7 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 			logger.info("Starting the sync live matches logic.");
 
 			List<String> urlList = Arrays.asList(urls);
-			List<LiveMatch> allNotDeletedMatches = liveMatchRepository.findByIsDeletedFalse();
+			List<LiveMatch> allNotDeletedMatches = liveMatchRepository.findByDeletionAttemptsLessThan(Integer.valueOf(2));
 
 			for (LiveMatch match : allNotDeletedMatches) {
 				if (!urlList.contains(match.getUrl())) {

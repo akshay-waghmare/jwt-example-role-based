@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -36,13 +38,19 @@ import org.springframework.messaging.simp.broker.BrokerAvailabilityEvent;
 import org.springframework.stereotype.Service;
 
 import com.devglan.dao.CricketDataDTO;
+import com.devglan.dao.MatchInfoEntity;
 import com.devglan.dao.OversData;
+import com.devglan.dao.PlayingXIEntity;
+import com.devglan.dao.SessionOdds;
 import com.devglan.dao.SessionOverData;
 import com.devglan.model.Bets;
 import com.devglan.model.CricketDataEntity;
+import com.devglan.model.PlayingXI;
 import com.devglan.model.TeamSessionData;
 import com.devglan.repository.CricketDataRepository;
+import com.devglan.repository.MatchInfoRepository;
 import com.devglan.repository.OversDataRepository;
+import com.devglan.repository.SessionOddsRepository;
 import com.devglan.repository.SessionOverDataRepository;
 import com.devglan.repository.TeamSessionDataRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -67,6 +75,12 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
     
     @Autowired
     private SessionOverDataRepository SessionOverDataRepository;
+    
+    @Autowired
+    private MatchInfoRepository matchInfoRepository;
+    
+    @Autowired
+    private SessionOddsRepository sessionOddsRepository;
 	
 
 
@@ -148,6 +162,11 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
         //lastUpdatedDataMap.put(url, data);
         CricketDataEntity entity = convertDtoToEntity(url, data);
         cricketDataRepository.save(entity);
+        
+        if (dataContainsMatchInfo(data)) {
+            MatchInfoEntity matchInfoEntity = convertDtoToMatchInfoEntity(data);
+            matchInfoRepository.save(matchInfoEntity);
+        }
     }
 
     // Method to get the last updated data for a specific URL
@@ -155,13 +174,151 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
     public synchronized CricketDataDTO getLastUpdatedData(String url) {
         //return lastUpdatedDataMap.get(url);
     	CricketDataEntity entity = cricketDataRepository.findByUrlWithTeamWiseSessionData(url);
+        MatchInfoEntity matchInfoEntity = matchInfoRepository.findById(url).orElse(null); // Get MatchInfoEntity by URL
+
+        if (entity == null && matchInfoEntity == null) {
+            return null;
+        }
+        
+
     	if (entity != null) {
     		Hibernate.initialize(entity.getMatchOdds());
             Hibernate.initialize(entity.getTeamWiseSessionData()); // Explicitly initialize
         }
-        return convertEntityToDto(entity);
+    	CricketDataDTO data = convertEntityToDto(entity);
+    	if (matchInfoEntity != null) {
+            data = mergeMatchInfoToCricketDataDTO(matchInfoEntity, data);
+        }
+        return data;
     	
     	
+    }
+    
+ // Convert MatchInfoEntity to CricketDataDTO and merge it
+    private CricketDataDTO mergeMatchInfoToCricketDataDTO(MatchInfoEntity matchInfoEntity, CricketDataDTO data) {
+        if (matchInfoEntity != null) {
+            data.setUrl(matchInfoEntity.getUrl());
+            data.setMatchDate(matchInfoEntity.getMatchDate());
+            data.setVenue(matchInfoEntity.getVenue());
+            data.setMatchName(matchInfoEntity.getMatchName());
+            data.setTossInfo(matchInfoEntity.getTossInfo());
+            data.setTeamComparison(matchInfoEntity.getTeamComparison());
+            data.setTeamForm(matchInfoEntity.getTeamForm());
+            data.setVenueStats(matchInfoEntity.getVenueStats());
+         // Transform List<PlayingXIEntity> to Map<String, List<PlayingXI>>
+            if (matchInfoEntity.getPlayingXI() != null && !matchInfoEntity.getPlayingXI().isEmpty()) {
+                Map<String, Set<PlayingXI>> convertedPlayingXIMap = new HashMap<>();
+                for (PlayingXIEntity playingXIEntity : matchInfoEntity.getPlayingXI()) {
+                    String teamName = playingXIEntity.getTeamName();
+                    PlayingXI playingXI = new PlayingXI();
+                    playingXI.setPlayerName(playingXIEntity.getPlayerName());
+                    playingXI.setPlayerRole(playingXIEntity.getPlayerRole());
+
+                    convertedPlayingXIMap.computeIfAbsent(teamName, k -> new HashSet<>()).add(playingXI);
+                }
+                data.setPlayingXI(convertedPlayingXIMap);
+            }
+        }
+        return data;
+    }
+    
+    private MatchInfoEntity convertDtoToMatchInfoEntity(CricketDataDTO dto) {
+        MatchInfoEntity entity = new MatchInfoEntity();
+        
+        if (dto.getUrl() != null) {
+            entity.setUrl(dto.getUrl());
+        }
+        if (dto.getMatchDate() != null) {
+            entity.setMatchDate(dto.getMatchDate());
+        }
+        if (dto.getVenue() != null) {
+            entity.setVenue(dto.getVenue());
+        }
+        if (dto.getMatchName() != null) {
+            entity.setMatchName(dto.getMatchName());
+        }
+        if (dto.getTossInfo() != null) {
+            entity.setTossInfo(dto.getTossInfo());
+        }
+        if (dto.getTeamComparison() != null) {
+            entity.setTeamComparison(dto.getTeamComparison());
+        }
+        if (dto.getTeamForm() != null) {
+            entity.setTeamForm(dto.getTeamForm());
+        }
+        if (dto.getVenueStats() != null) {
+            entity.setVenueStats(dto.getVenueStats());
+        }
+     // Convert Map<String, List<PlayingXI>> to List<PlayingXIEntity>
+        if (dto.getPlayingXI() != null && !dto.getPlayingXI().isEmpty()) {
+            Set<PlayingXIEntity> playingXIEntityList = new HashSet<>();
+            for (Entry<String, Set<PlayingXI>> entry : dto.getPlayingXI().entrySet()) {
+                String teamName = entry.getKey();
+                Set<PlayingXI> playingXIList = entry.getValue();
+
+                for (PlayingXI playingXI : playingXIList) {
+                    PlayingXIEntity playingXIEntity = new PlayingXIEntity();
+                    playingXIEntity.setTeamName(teamName);
+                    playingXIEntity.setPlayerName(playingXI.getPlayerName());
+                    playingXIEntity.setPlayerRole(playingXI.getPlayerRole());
+                    playingXIEntityList.add(playingXIEntity);
+                }
+            }
+            entity.setPlayingXI(playingXIEntityList);
+        }
+
+        return entity;
+    }
+    
+	private CricketDataDTO convertEntityToDto(MatchInfoEntity entity) {
+		CricketDataDTO dto = new CricketDataDTO();
+
+		if (entity != null) {
+			if (entity.getUrl() != null) {
+				dto.setUrl(entity.getUrl());
+			}
+			if (entity.getMatchDate() != null) {
+				dto.setMatchDate(entity.getMatchDate());
+			}
+			if (entity.getVenue() != null) {
+				dto.setVenue(entity.getVenue());
+			}
+			if (entity.getMatchName() != null) {
+				dto.setMatchName(entity.getMatchName());
+			}
+			if (entity.getTossInfo() != null) {
+				dto.setTossInfo(entity.getTossInfo());
+			}
+			if (entity.getTeamComparison() != null) {
+				dto.setTeamComparison(entity.getTeamComparison());
+			}
+			if (entity.getTeamForm() != null) {
+				dto.setTeamForm(entity.getTeamForm());
+			}
+			if (entity.getVenueStats() != null) {
+				dto.setVenueStats(entity.getVenueStats());
+			}
+			// Transform List<PlayingXIEntity> to Map<String, List<PlayingXI>>
+			if (entity.getPlayingXI() != null && !entity.getPlayingXI().isEmpty()) {
+				Map<String, Set<PlayingXI>> playingXIMap = new HashMap<>();
+				for (PlayingXIEntity playingXIEntity : entity.getPlayingXI()) {
+					String teamName = playingXIEntity.getTeamName();
+					PlayingXI playingXI = new PlayingXI();
+					playingXI.setPlayerName(playingXIEntity.getPlayerName());
+					playingXI.setPlayerRole(playingXIEntity.getPlayerRole());
+
+					// Use a HashSet instead of ArrayList for the Set<PlayingXI>
+					playingXIMap.computeIfAbsent(teamName, k -> new HashSet<>()).add(playingXI);
+				}
+			}
+		}
+
+		return dto;
+	}
+    
+    private boolean dataContainsMatchInfo(CricketDataDTO data) {
+        // Check if the DTO contains match info data that needs to be saved
+        return true;
     }
     
     @org.springframework.transaction.annotation.Transactional
@@ -189,7 +346,31 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 		entity.setCurrentBall(data.getCurrentBall());
 		entity.setRunsOnBall(data.getRunsOnBall());
 		entity.setFavTeam(data.getFavTeam());
-		entity.setSessionOdds(data.getSessionOdds());
+		// Handle multiple session odds
+		// Handle multiple session odds
+		// Update session odds logic (without immediate save)
+		if (data.getSessionOddsList() != null && !data.getSessionOddsList().isEmpty()) {
+			Set<SessionOdds> sessionOddsSet = new HashSet<>();
+
+			for (SessionOdds sessionOdds : data.getSessionOddsList()) {
+				Optional<SessionOdds> existingSessionOdds = sessionOddsRepository
+						.findBySessionOverAndCricketDataEntityUrl(sessionOdds.getSessionOver(), entity.getUrl());
+
+				if (existingSessionOdds.isPresent()) {
+					// Update existing session odds
+					SessionOdds existing = existingSessionOdds.get();
+					existing.setSessionBackOdds(sessionOdds.getSessionBackOdds());
+					existing.setSessionLayOdds(sessionOdds.getSessionLayOdds());
+					sessionOddsSet.add(existing); // Add updated session odds to the set
+				} else {
+					// Create new session odds
+					sessionOdds.setCricketDataEntity(entity);
+					sessionOddsSet.add(sessionOdds); // Add new session odds to the set
+				}
+			}
+			entity.setSessionOddsSet(sessionOddsSet);
+		}
+
 		entity.setCurrentRunRate(data.getCurrentRunRate());
 		entity.setFinalResultText(data.getFinalResultText());
 
@@ -236,45 +417,48 @@ public class CricketDataService implements ApplicationListener<BrokerAvailabilit
 
 		return entity;
 	}
-    
-    @org.springframework.transaction.annotation.Transactional
-    public CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-        CricketDataDTO data = new CricketDataDTO();
-        data.setMatchOdds(entity.getMatchOdds());
-        data.setTeamOdds(entity.getTeamOdds());
-        data.setBattingTeamName(entity.getBattingTeamName());
-        data.setOver(entity.getOver());
-        data.setScore(entity.getScore());
-        data.setCurrentBall(entity.getCurrentBall());
-        data.setRunsOnBall(entity.getRunsOnBall());
-        data.setFavTeam(entity.getFavTeam());
-        data.setSessionOdds(entity.getSessionOdds());
-        data.setCurrentRunRate(entity.getCurrentRunRate());
-        data.setFinalResultText(entity.getFinalResultText());
-        data.setOversData(entity.getOversData());
-        data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
+
+	@org.springframework.transaction.annotation.Transactional
+	public CricketDataDTO convertEntityToDto(CricketDataEntity entity) {
+		if (entity == null) {
+			return null;
+		}
+		CricketDataDTO data = new CricketDataDTO();
+		data.setMatchOdds(entity.getMatchOdds());
+		data.setTeamOdds(entity.getTeamOdds());
+		data.setBattingTeamName(entity.getBattingTeamName());
+		data.setOver(entity.getOver());
+		data.setScore(entity.getScore());
+		data.setCurrentBall(entity.getCurrentBall());
+		data.setRunsOnBall(entity.getRunsOnBall());
+		data.setFavTeam(entity.getFavTeam());
+		// Convert multiple session odds
+		if (entity.getSessionOddsSet() != null && !entity.getSessionOddsSet().isEmpty()) {
+			data.setSessionOddsList(entity.getSessionOddsSet());
+		}
+		data.setCurrentRunRate(entity.getCurrentRunRate());
+		data.setFinalResultText(entity.getFinalResultText());
+		data.setOversData(entity.getOversData());
+		data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
 		if (entity.getLastOddsUpdatedTimeStamp() == null) {
 			data.setLastUpdated(0l);
-		}else {
+		} else {
 			data.setLastUpdated(entity.getLastOddsUpdatedTimeStamp());
 		}
-        //data.setTossWonCountry(entity.getTossWonCountry());
-        //data.setBatOrBallSelected(entity.getBatOrBallSelected());
-        //data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
-        
-        // Convert TeamSessionData to Map
-        List<TeamSessionData> teamSessionDataList = entity.getTeamWiseSessionData();
-        if (teamSessionDataList != null) {
-            Map<String, List<SessionOverData>> teamWiseSessionData = new HashMap<>();
-            for (TeamSessionData teamSessionData : teamSessionDataList) {
-                teamWiseSessionData.put(teamSessionData.getTeamName(), teamSessionData.getSessionOverDataList());
-            }
-            data.setTeamWiseSessionData(teamWiseSessionData);
-        }
-        return data;
-    }   
+		// data.setTossWonCountry(entity.getTossWonCountry());
+		// data.setBatOrBallSelected(entity.getBatOrBallSelected());
+		// data.setUpdatedTimeStamp(entity.getUpdatedTimeStamp());
+
+		// Convert TeamSessionData to Map
+		List<TeamSessionData> teamSessionDataList = entity.getTeamWiseSessionData();
+		if (teamSessionDataList != null) {
+			Map<String, List<SessionOverData>> teamWiseSessionData = new HashMap<>();
+			for (TeamSessionData teamSessionData : teamSessionDataList) {
+				teamWiseSessionData.put(teamSessionData.getTeamName(), teamSessionData.getSessionOverDataList());
+			}
+			data.setTeamWiseSessionData(teamWiseSessionData);
+		}
+		return data;
+	}
 
 }

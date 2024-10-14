@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
@@ -41,7 +41,6 @@ import com.devglan.model.LiveMatch;
 import com.devglan.model.Transaction;
 import com.devglan.model.User;
 import com.devglan.model.UserExposure;
-import com.devglan.repository.CricketDataRepository;
 import com.devglan.repository.TransactionRepository;
 import com.devglan.repository.UserExposureRepository;
 import com.devglan.websocket.service.CricketDataService;
@@ -53,9 +52,6 @@ public class BetService {
 
 	@Autowired
 	private BetRepository betRepository;
-
-	@Autowired
-	private CricketDataRepository cricketDataRepository;
 
 	@Autowired
 	private CricketDataService cricketDataService;
@@ -1434,13 +1430,20 @@ public class BetService {
 			return;
 		}
 
-		SessionOdds fetchedSessionOdds = fetchedLatestOdds.getSessionOdds();
+		Set<SessionOdds> fetchedSessionOddsSet = fetchedLatestOdds.getSessionOddsList();
 
-		if (fetchedSessionOdds == null) {
+
+		if (fetchedSessionOddsSet == null) {
 			cricketDataService.notifyBetStatus(cancelBet(bet));
 			return;
 		}
-
+		
+		// Find the session odds for the specific session name of the bet
+		SessionOdds fetchedSessionOdds = fetchedSessionOddsSet.stream()
+		    .filter(so -> so.getSessionOver().equalsIgnoreCase(bet.getSessionName()))
+		    .findFirst()
+		    .orElse(null);
+		
 		// Session bets are either YES or NO bets
 		// YES bet on session over: accept if bet odds <= fetched back odds
 		// NO bet on session over: accept if bet odds >= fetched lay odds

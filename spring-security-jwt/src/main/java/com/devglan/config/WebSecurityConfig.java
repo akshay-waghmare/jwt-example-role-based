@@ -70,6 +70,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 						"/tennis", "/tennis/**", 
 						"/cricket-data", "/cricket-data/**", 
 						"/bet-history", "/bet-history/**",
+						"/cricket-data/bets","cricket-data/bets/**",
+						"cricket-data/match-info/get","cricket-data/match-info/get/**",
 						"/cricket-data/update-winning-team", "/cricket-data/update-winning-team/**"
 				).permitAll()
 				.anyRequest().authenticated()
