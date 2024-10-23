@@ -34,12 +34,14 @@ import com.devglan.dao.CricketDataDTO;
 import com.devglan.dao.ProfitLossDTO;
 import com.devglan.dao.SessionOverData;
 import com.devglan.model.Bets;
+import com.devglan.model.BlogPost;
 import com.devglan.model.ExposureResult;
 import com.devglan.model.LiveMatch;
 import com.devglan.model.User;
 import com.devglan.service.BetService;
 import com.devglan.service.LiveMatchService;
 import com.devglan.service.MatchInfoService;
+import com.devglan.service.RssFeedService;
 import com.devglan.service.UserService;
 import com.devglan.websocket.service.CricketDataService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -67,6 +69,9 @@ public class CricketDataController {
 
 	@Autowired
 	private MatchInfoService matchInfoService;
+	
+	@Autowired
+	private RssFeedService rssFeedService;
 
 	@PostMapping
 	public ResponseEntity<String> receiveCricketData(@RequestBody CricketDataDTO data) {
@@ -385,6 +390,16 @@ public class CricketDataController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating winning team");
 		}
 	}
+	
+
+	
+	
+	@GetMapping("/blog-posts")
+	public ResponseEntity<List<BlogPost>> getBlogPosts() {
+		String feedUrl = "https://victoryviews.blogspot.com/feeds/posts/default"; // Use the actual
+		List<BlogPost> blogPosts = rssFeedService.fetchBlogPosts(feedUrl);
+		return ResponseEntity.ok(blogPosts);
+	}
 
 	@GetMapping("/get-match-bet-with-exposure")
 	public ResponseEntity<Map<String, BetResponse>> getMatchBetsWithExposure() {
@@ -456,6 +471,8 @@ public class CricketDataController {
 	                }
 	            }
 	        }
+	        
+	        
 
 	        // Check if the odds are null
 	        if (bet.getOdd() == null || bet.getOdd().compareTo(BigDecimal.ONE) == 0) {
