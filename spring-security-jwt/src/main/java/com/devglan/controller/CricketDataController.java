@@ -42,6 +42,7 @@ import com.devglan.service.BetService;
 import com.devglan.service.LiveMatchService;
 import com.devglan.service.MatchInfoService;
 import com.devglan.service.RssFeedService;
+import com.devglan.service.ScorecardService;
 import com.devglan.service.UserService;
 import com.devglan.websocket.service.CricketDataService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -72,6 +73,9 @@ public class CricketDataController {
 	
 	@Autowired
 	private RssFeedService rssFeedService;
+	
+	@Autowired
+	private ScorecardService scoreCardService;
 
 	@PostMapping
 	public ResponseEntity<String> receiveCricketData(@RequestBody CricketDataDTO data) {
@@ -238,10 +242,53 @@ public class CricketDataController {
 	    }
 	}
 	
+	@PostMapping("/sC4-stats/save")
+	public ResponseEntity<String> receiveSC4Stats(@RequestBody String data) {
+	    try {
+	    	System.out.println("Received data: " + data);
+
+	        // Parse the JSON string
+	        ObjectMapper objectMapper = new ObjectMapper();
+	        Map<String, Object> payload = objectMapper.readValue(data, new TypeReference<Map<String, Object>>(){});
+
+	        String url = (String) payload.get("url");
+	        payload.remove("url");
+
+	        String dataJson = objectMapper.writeValueAsString(payload);
+	        
+	        scoreCardService.saveMatchInfo(url, dataJson);
+	        
+	        return ResponseEntity.ok("sC4_stats data received and saved successfully!");
+	    } catch (Exception e) {
+	        log.error("Error receiving sC4_stats data: {}", e.getMessage(), e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                             .body("Error saving sC4_stats data: " + e.getMessage());
+	    }
+	}
+	
 	@GetMapping("/match-info/get")
 	public ResponseEntity<?> getMatchInfo(@RequestParam("url") String url) {
 	    try {
 	        String dataJson = matchInfoService.getMatchInfo(url);
+	        if (dataJson != null) {
+	            // Parse the JSON string back into an object
+	            ObjectMapper objectMapper = new ObjectMapper();
+	            Map<String, Object> data = objectMapper.readValue(dataJson, new TypeReference<Map<String, Object>>() {});
+	            
+	            return ResponseEntity.ok(data);
+	        } else {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No data found for the given URL.");
+	        }
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error retrieving match info.");
+	    }
+	}
+	
+	@GetMapping("/sC4-stats/get")
+	public ResponseEntity<?> getScorecardInfo(@RequestParam("url") String url) {
+	    try {
+	        String dataJson = scoreCardService.getMatchInfo(url);
 	        if (dataJson != null) {
 	            // Parse the JSON string back into an object
 	            ObjectMapper objectMapper = new ObjectMapper();
