@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -127,9 +128,17 @@ public class BetService {
 			// Group bets by team to handle multi-team logic if necessary
 			// Map<String, List<Bets>> betsByTeam =
 			// userBets.stream().collect(Collectors.groupingBy(Bets::getTeamName));
+            
+			Map<Boolean, List<Bets>> betsBySession = new HashMap<>();
 
-			Map<Boolean, List<Bets>> betsBySession = userBets.stream()
-					.collect(Collectors.partitioningBy(Bets::getIsSessionBet));
+			if (userBets != null) {
+				 betsBySession = userBets.stream()
+					.filter(Objects::nonNull) // Filter out null elements
+					.collect(Collectors.partitioningBy(bet -> {
+						Boolean isSessionBet = bet.getIsSessionBet();
+						return isSessionBet != null && isSessionBet;
+					}));
+			}
 
 			// Handle session bets
 			// this should be done first as it does not need a winning team
@@ -1440,7 +1449,7 @@ public class BetService {
 		
 		// Find the session odds for the specific session name of the bet
 		SessionOdds fetchedSessionOdds = fetchedSessionOddsSet.stream()
-		    .filter(so -> so.getSessionOver().equalsIgnoreCase(bet.getSessionName()))
+		    .filter(so -> so.getSessionOver().concat(" Over").equalsIgnoreCase(bet.getSessionName()))
 		    .findFirst()
 		    .orElse(null);
 		

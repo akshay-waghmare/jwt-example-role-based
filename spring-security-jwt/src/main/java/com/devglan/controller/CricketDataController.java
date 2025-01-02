@@ -89,7 +89,7 @@ public class CricketDataController {
 	            existingData.setUrl(data.getUrl());
 	        }
 
-	        System.out.println("Received cricket data: " + data);
+	        //System.out.println("Received cricket data: " + data);
 
 	        Map<String, Object> nonNullFields = new HashMap<>();
 
