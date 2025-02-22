@@ -60,6 +60,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 				.authorizeRequests()
 				.antMatchers(
+						"/api/**",
+						"/vote/**",
 				        "/users/search", "/users/search/**", 
 				        "/ws/*", "/ws/**", 
 				        "/h2-console/**", 
