@@ -48,22 +48,23 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 			logger.info("Starting the sync live matches logic.");
 
 			List<String> urlList = Arrays.asList(urls);
-			List<LiveMatch> allNotDeletedMatches = liveMatchRepository.findByDeletionAttemptsLessThan(Integer.valueOf(2));
+			List<LiveMatch> allNotDeletedMatches = liveMatchRepository.findByDeletionAttemptsLessThanAndIsDeletedFalse(Integer.valueOf(2));
 
 			for (LiveMatch match : allNotDeletedMatches) {
 				if (!urlList.contains(match.getUrl())) {
+					match.setDeletionAttempts(match.getDeletionAttempts() + 1);
+					
 					if (match.getDeletionAttempts() >= 2) {
 						CricketDataDTO lastUpdatedData = cricketDataService
 								.getLastUpdatedData(appendBaseUrl(match.getUrl()));
 						if (lastUpdatedData != null) {
 							match.setLastKnownState(lastUpdatedData.getCurrentBall());
-							match.setDeleted(true);
-							liveMatchRepository.save(match);
-							stopScraping(match.getUrl());
 						}
+						match.setDeleted(true);
+						liveMatchRepository.save(match);
+						stopScraping(match.getUrl());
 						notifyMatchStatusChange(match.getUrl(), "deleted");
 					} else {
-						match.setDeletionAttempts(match.getDeletionAttempts() + 1);
 						liveMatchRepository.save(match);
 					}
 				}
@@ -117,7 +118,7 @@ public class LiveMatchServiceImpl implements LiveMatchService {
 	}
 	
 	public List<LiveMatch> findAllLiveMatches() {
-		return liveMatchRepository.findByDeletionAttemptsLessThan(Integer.valueOf(2));
+		return liveMatchRepository.findByDeletionAttemptsLessThanAndIsDeletedFalse(Integer.valueOf(2));
 	}
 
 	public List<LiveMatch> findAllMatches() {
